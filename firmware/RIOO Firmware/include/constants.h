@@ -1,6 +1,10 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+// LEDS
+
+#define BUILTIN_LED_PIN 2
+
 // ULTRASONIC SENSORS
 
 #define TRIG_PIN 5
