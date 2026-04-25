@@ -9,8 +9,9 @@ if not cap.isOpened():
 
 print("Camera is active! Attempting to capture a frame...")
 
-# Capture a single frame
-ret, frame = cap.read()
+# Burn through the first 30 frames to let exposure auto-adjust
+for i in range(30):
+    ret, frame = cap.read()
 
 if ret:
     # Save the frame to a file
