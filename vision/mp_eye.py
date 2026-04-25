@@ -2,34 +2,38 @@ import cv2
 import mediapipe as mp
 import os
 
-# Set this to '1' if you are on the headless Pi
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
-# Initialize MediaPipe
 mp_face_mesh = mp.solutions.face_mesh
-# refine_landmarks=True is crucial for getting pupil accuracy
-face_mesh = mp_face_mesh.FaceMesh(refine_landmarks=True, static_image_mode=False)
+face_mesh = mp_face_mesh.FaceMesh(
+    max_num_faces=1,
+    refine_landmarks=True, 
+    min_detection_confidence=0.4,
+    min_tracking_confidence=0.4
+)
 
-# Start Camera
-cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+print("Connecting to camera stream...")
+# Connect to the TCP stream we started in the other terminal
+cap = cv2.VideoCapture('tcp://127.0.0.1:8888')
 
-print("Starting eye tracking...")
+if not cap.isOpened():
+    print("Failed to open stream.")
+    exit()
+
+print("Stream connected! Tracking eyes...")
 
 while cap.isOpened():
     ret, frame = cap.read()
-    if not ret:
+    if not ret: 
+        print("Dropped frame.")
         break
 
-    # 1. Convert BGR (OpenCV) to RGB (MediaPipe) - CRITICAL STEP
+    # Convert to RGB for MediaPipe
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-    # 2. Process
     results = face_mesh.process(rgb_frame)
 
-    # 3. Tracking Logic
     if results.multi_face_landmarks:
-        # Landmark 473 is the center of the left eye pupil
-        # We access the first face detected [0]
+        # Get the left eye pupil
         eye_landmark = results.multi_face_landmarks[0].landmark[473]
         
         # Normalize (0 to 1 -> -1 to 1)
@@ -38,11 +42,9 @@ while cap.isOpened():
         
         print(f"X: {x_norm:.2f}, Y: {y_norm:.2f}")
 
-    # 4. Display (Only if not headless)
     if not is_headless:
         cv2.imshow('Eye Tracker', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        if cv2.waitKey(1) & 0xFF == ord('q'): break
 
 cap.release()
 if not is_headless:
