@@ -1,4 +1,4 @@
-#include "ultrasonic.h"
+#include "sensors/ultrasonic.h"
 #include "constants.h"
 
 void initializeUltrasonics() {
