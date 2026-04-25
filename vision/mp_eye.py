@@ -7,33 +7,29 @@ import threading
 
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
-# --- NEW: Multithreaded Camera Class ---
+# --- Fixed Camera Class (Zero Lag) ---
 class CameraStream:
     def __init__(self, src='tcp://127.0.0.1:8888'):
         self.stream = cv2.VideoCapture(src)
+        self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 1) 
         self.ret, self.frame = self.stream.read()
         self.stopped = False
 
     def start(self):
-        # Start the thread to read frames in the background
         threading.Thread(target=self.update, args=(), daemon=True).start()
         return self
 
     def update(self):
-        # Keep looping infinitely until the thread is stopped
         while not self.stopped:
             self.ret, self.frame = self.stream.read()
-            # A tiny sleep prevents this thread from eating 100% of the CPU
-            time.sleep(0.01) 
 
     def read(self):
-        # Return the absolute newest frame
         return self.ret, self.frame
 
     def stop(self):
         self.stopped = True
         self.stream.release()
-# ---------------------------------------
+# ------------------------------------------
 
 # --- Serial Setup ---
 ESP_PORT = '/dev/ttyUSB0' 
@@ -56,19 +52,17 @@ face_mesh = mp_face_mesh.FaceMesh(
 )
 
 print("Connecting to fast camera stream...")
-# Start our threaded camera!
 cam = CameraStream().start()
-time.sleep(1) # Let the camera warm up
+time.sleep(1) 
 
 if not cam.ret:
     print("Failed to open stream.")
     cam.stop()
     exit()
 
-print("Stream connected! Tracking eyes with zero lag...")
+print("Stream connected! Tracking gaze...")
 
 while True:
-    # Grab the absolute freshest frame from the background thread
     ret, frame = cam.read()
     if not ret: break
 
@@ -79,19 +73,59 @@ while True:
     results = face_mesh.process(rgb_frame)
 
     if results.multi_face_landmarks:
-        eye_landmark = results.multi_face_landmarks[0].landmark[473]
+        landmarks = results.multi_face_landmarks[0].landmark
         
-        x_norm = (eye_landmark.x - 0.5) * 2
-        y_norm = (eye_landmark.y - 0.5) * 2
+        iris = landmarks[473]
+        inner_corner = landmarks[362]
+        outer_corner = landmarks[263]
+        top_edge = landmarks[386]
+        bottom_edge = landmarks[374]
         
-        pixel_x = int(eye_landmark.x * w)
-        pixel_y = int(eye_landmark.y * h)
-        
-        cv2.circle(frame, (pixel_x, pixel_y), 6, (0, 255, 0), -1)
+        # --- GAZE MATH (RAW RATIOS) ---
+        eye_width = outer_corner.x - inner_corner.x
+        if eye_width != 0:
+            ratio_x = (iris.x - inner_corner.x) / eye_width
+        else:
+            ratio_x = 0.5
+            
+        eye_height = bottom_edge.y - top_edge.y
+        if eye_height != 0:
+            ratio_y = (iris.y - top_edge.y) / eye_height
+        else:
+            ratio_y = 0.5
 
-        print(f"X: {x_norm:.2f}, Y: {y_norm:.2f}")
+        # --- CARTESIAN MAPPING (-1.0 to 1.0) ---
+        # Map X: 0.0 (left) to 1.0 (right) -> -1.0 to 1.0
+        cart_x = (ratio_x * 2.0) - 1.0
+        
+        # Map Y: 0.0 (top) to 1.0 (bottom) -> 1.0 to -1.0 (Inverted so bottom is -1)
+        cart_y = -((ratio_y * 2.0) - 1.0)
+
+        # Clamp values to strictly stay within the -1.0 and 1.0 bounds
+        cart_x = max(-1.0, min(1.0, cart_x))
+        cart_y = max(-1.0, min(1.0, cart_y))
+
+        # --- DETERMINE DIRECTION (Using the new scale) ---
+        # Thresholds: -0.2 to 0.2 is the "deadzone" for looking straight ahead
+        if cart_x < -0.20: x_dir = "left"
+        elif cart_x > 0.20: x_dir = "right"
+        else: x_dir = "center"
+
+        if cart_y < -0.20: y_dir = "down"
+        elif cart_y > 0.20: y_dir = "up"
+        else: y_dir = "center"
+
+        print(f"Looking {y_dir} and {x_dir} | X:{cart_x:.2f} Y:{cart_y:.2f}")
+
+        # --- DRAWING THE DOTS ---
+        for lm in [inner_corner, outer_corner, top_edge, bottom_edge]:
+            cv2.circle(frame, (int(lm.x * w), int(lm.y * h)), 3, (0, 0, 255), -1)
+        cv2.circle(frame, (int(iris.x * w), int(iris.y * h)), 4, (0, 255, 0), -1)
+
+        # --- SEND TO ESP32 ---
         if ser:
-            data_packet = f"{x_norm:.2f},{y_norm:.2f}\n"
+            # Sending the perfectly mapped Cartesian coordinates
+            data_packet = f"{cart_x:.2f},{cart_y:.2f}\n"
             ser.write(data_packet.encode('utf-8'))
 
     if not is_headless:
