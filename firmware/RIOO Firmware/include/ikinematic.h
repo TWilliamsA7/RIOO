@@ -1,11 +1,11 @@
 #ifndef IKINEMATICS_H
 #define IKINEMATICS_H
 
-typedef struct Point {
+struct Point {
     float x, y, z;
 };
 
-typedef struct JointAngles {
+struct JointAngles {
     float base, shoulder, elbow;
 };
 
