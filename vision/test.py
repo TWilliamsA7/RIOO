@@ -1,27 +1,23 @@
 import cv2
 
-# Initialize the camera
-# On a Pi 3, the camera is usually assigned to index 0
-cap = cv2.VideoCapture(0)
+# Initialize the camera using the V4L2 backend
+cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
 
 if not cap.isOpened():
-    print("Error: Could not open the PiCam. Check your ribbon cable!")
+    print("Error: Could not open the PiCam.")
     exit()
 
-print("Camera is active! Press 'q' to close the window.")
+print("Camera is active! Attempting to capture a frame...")
 
-while True:
-    ret, frame = cap.read()
-    
-    if not ret:
-        print("Failed to grab frame.")
-        break
-        
-    cv2.imshow('PiCam Test', frame)
-    
-    # Press 'q' to exit
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+# Capture a single frame
+ret, frame = cap.read()
 
+if ret:
+    # Save the frame to a file
+    cv2.imwrite('test_snapshot.jpg', frame)
+    print("Success! Snapshot saved as 'test_snapshot.jpg'. Check your folder.")
+else:
+    print("Failed to capture frame.")
+
+# Clean up without GUI functions
 cap.release()
-cv2.destroyAllWindows()
