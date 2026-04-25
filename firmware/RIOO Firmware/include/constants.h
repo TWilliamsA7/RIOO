@@ -1,0 +1,16 @@
+#ifndef CONSTANTS_H
+#define CONSTANTS_H
+
+// ULTRASONIC SENSORS
+
+#define TRIG_PIN 5
+#define ECHO_PIN 12
+
+// SERVOS
+
+#define BASE_SERVO_PIN 13
+#define SHOULDER_SERVO_PIN 14
+#define ELBOW_SERVO_PIN 18
+#define GRIPPER_SERVO_PIN 19
+
+#endif // CONSTANTS_H
