@@ -1,24 +1,23 @@
 import cv2
 
-# Initialize the camera using the V4L2 backend
-cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+# Open the camera
+cap = cv2.VideoCapture(0)
 
-if not cap.isOpened():
-    print("Error: Could not open the PiCam.")
-    exit()
+# 1. Force a lower, stable resolution BEFORE reading
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
+# 2. Force MJPEG compression so the Pi 3 doesn't choke on raw YUV data
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
 
 print("Camera is active! Attempting to capture a frame...")
 
-# Burn through the first 30 frames to let exposure auto-adjust
-for i in range(30):
-    ret, frame = cap.read()
+ret, frame = cap.read()
 
-if ret:
-    # Save the frame to a file
-    cv2.imwrite('test_snapshot.jpg', frame)
-    print("Success! Snapshot saved as 'test_snapshot.jpg'. Check your folder.")
+if not ret:
+    print("ERROR: Frame dropped.")
 else:
-    print("Failed to capture frame.")
+    print(f"SUCCESS! Grabbed a frame of size: {frame.shape}")
+    # If in mp_eye.py, your MediaPipe logic would continue here...
 
-# Clean up without GUI functions
 cap.release()
