@@ -1,3 +1,3 @@
 opencv-python-headless
-mediapipe-rpi
+mediapipe
 pyserial
