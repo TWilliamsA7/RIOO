@@ -11,6 +11,7 @@ is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 class CameraStream:
     def __init__(self, src='tcp://127.0.0.1:8888'):
         self.stream = cv2.VideoCapture(src)
+        # FORCE OpenCV to drop old frames instantly
         self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 1) 
         self.ret, self.frame = self.stream.read()
         self.stopped = False
@@ -21,6 +22,7 @@ class CameraStream:
 
     def update(self):
         while not self.stopped:
+            # No sleep command. Consume the TCP buffer as fast as possible.
             self.ret, self.frame = self.stream.read()
 
     def read(self):
@@ -32,14 +34,14 @@ class CameraStream:
 # ------------------------------------------
 
 # --- Serial Setup ---
-ESP_PORT = '/dev/ttyUSB0' 
+ESP_PORT = '/dev/ttyUSB0' # Change to /dev/ttyACM0 if needed
 BAUD_RATE = 115200
 try:
     ser = serial.Serial(ESP_PORT, BAUD_RATE, timeout=1)
     time.sleep(2) 
     print(f"Connected to ESP32 on {ESP_PORT}!")
 except Exception as e:
-    print(f"WARNING: Could not connect to ESP32. Running vision only.")
+    print(f"WARNING: Could not connect to ESP32 on {ESP_PORT}. Running vision only.")
     ser = None
 # --------------------
 
@@ -53,7 +55,7 @@ face_mesh = mp_face_mesh.FaceMesh(
 
 print("Connecting to fast camera stream...")
 cam = CameraStream().start()
-time.sleep(1) 
+time.sleep(1) # Let the camera warm up
 
 if not cam.ret:
     print("Failed to open stream.")
@@ -67,6 +69,8 @@ while True:
     if not ret: break
 
     h, w, _ = frame.shape
+    
+    # Downscale for much faster AI processing on the Pi
     small_frame = cv2.resize(frame, (320, 240))
     rgb_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
     
@@ -75,34 +79,41 @@ while True:
     if results.multi_face_landmarks:
         landmarks = results.multi_face_landmarks[0].landmark
         
+        # Left eye (from the image's perspective)
         iris = landmarks[473]
         inner_corner = landmarks[362]
         outer_corner = landmarks[263]
-        top_edge = landmarks[386]
-        bottom_edge = landmarks[374]
         
-        # --- GAZE MATH (RAW RATIOS) ---
+        # --- THE EQUATOR MATH ---
+        # 1. The X-axis (Width)
         eye_width = outer_corner.x - inner_corner.x
         if eye_width != 0:
             ratio_x = (iris.x - inner_corner.x) / eye_width
         else:
             ratio_x = 0.5
             
-        eye_height = bottom_edge.y - top_edge.y
-        if eye_height != 0:
-            ratio_y = (iris.y - top_edge.y) / eye_height
+        # 2. The Y-axis (Equator) 
+        equator_y = (inner_corner.y + outer_corner.y) / 2.0
+        
+        if eye_width != 0:
+            raw_y = (iris.y - equator_y) / eye_width
         else:
-            ratio_y = 0.5
+            raw_y = 0.0
 
         # --- CARTESIAN MAPPING (-1.0 to 1.0) ---
         cart_x = (ratio_x * 2.0) - 1.0
-        cart_y = -((ratio_y * 2.0) - 1.0)
+        
+        # Multiplier to scale the tiny vertical iris movements
+        Y_SENSITIVITY = 8.0 
+        
+        # Invert the Y so looking down becomes negative
+        cart_y = -(raw_y * Y_SENSITIVITY)
 
+        # Clamp values to strictly stay within bounds
         cart_x = max(-1.0, min(1.0, cart_x))
         cart_y = max(-1.0, min(1.0, cart_y))
 
         # --- DETERMINE DIRECTION (Strict Binary/Center) ---
-        # Round to 2 decimal places to prevent microscopic floating-point errors from bypassing "center"
         check_x = round(cart_x, 2)
         if check_x < 0.0: x_dir = "left"
         elif check_x > 0.0: x_dir = "right"
@@ -115,9 +126,17 @@ while True:
 
         print(f"Looking {y_dir} and {x_dir} | X:{cart_x:.2f} Y:{cart_y:.2f}")
 
-        # --- DRAWING THE DOTS ---
-        for lm in [inner_corner, outer_corner, top_edge, bottom_edge]:
-            cv2.circle(frame, (int(lm.x * w), int(lm.y * h)), 3, (0, 0, 255), -1)
+        # --- DRAWING THE DOTS & EQUATOR ---
+        cv2.circle(frame, (int(inner_corner.x * w), int(inner_corner.y * h)), 3, (0, 0, 255), -1)
+        cv2.circle(frame, (int(outer_corner.x * w), int(outer_corner.y * h)), 3, (0, 0, 255), -1)
+        
+        # Blue Equator line
+        cv2.line(frame, 
+                 (int(inner_corner.x * w), int(inner_corner.y * h)), 
+                 (int(outer_corner.x * w), int(outer_corner.y * h)), 
+                 (255, 0, 0), 1)
+
+        # Green Iris dot
         cv2.circle(frame, (int(iris.x * w), int(iris.y * h)), 4, (0, 255, 0), -1)
 
         # --- SEND TO ESP32 ---
