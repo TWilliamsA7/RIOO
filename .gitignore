@@ -6,3 +6,7 @@ venv/
 # Planning Documents
 
 plan.md
+
+# VSCode Settings
+
+.vscode/
