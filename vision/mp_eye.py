@@ -95,24 +95,22 @@ while True:
             ratio_y = 0.5
 
         # --- CARTESIAN MAPPING (-1.0 to 1.0) ---
-        # Map X: 0.0 (left) to 1.0 (right) -> -1.0 to 1.0
         cart_x = (ratio_x * 2.0) - 1.0
-        
-        # Map Y: 0.0 (top) to 1.0 (bottom) -> 1.0 to -1.0 (Inverted so bottom is -1)
         cart_y = -((ratio_y * 2.0) - 1.0)
 
-        # Clamp values to strictly stay within the -1.0 and 1.0 bounds
         cart_x = max(-1.0, min(1.0, cart_x))
         cart_y = max(-1.0, min(1.0, cart_y))
 
-        # --- DETERMINE DIRECTION (Using the new scale) ---
-        # Thresholds: -0.2 to 0.2 is the "deadzone" for looking straight ahead
-        if cart_x < -0.20: x_dir = "left"
-        elif cart_x > 0.20: x_dir = "right"
+        # --- DETERMINE DIRECTION (Strict Binary/Center) ---
+        # Round to 2 decimal places to prevent microscopic floating-point errors from bypassing "center"
+        check_x = round(cart_x, 2)
+        if check_x < 0.0: x_dir = "left"
+        elif check_x > 0.0: x_dir = "right"
         else: x_dir = "center"
 
-        if cart_y < -0.20: y_dir = "down"
-        elif cart_y > 0.20: y_dir = "up"
+        check_y = round(cart_y, 2)
+        if check_y < 0.0: y_dir = "down"
+        elif check_y > 0.0: y_dir = "up"
         else: y_dir = "center"
 
         print(f"Looking {y_dir} and {x_dir} | X:{cart_x:.2f} Y:{cart_y:.2f}")
@@ -124,7 +122,6 @@ while True:
 
         # --- SEND TO ESP32 ---
         if ser:
-            # Sending the perfectly mapped Cartesian coordinates
             data_packet = f"{cart_x:.2f},{cart_y:.2f}\n"
             ser.write(data_packet.encode('utf-8'))
 
