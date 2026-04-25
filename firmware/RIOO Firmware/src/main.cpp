@@ -1,18 +1,19 @@
 #include <Arduino.h>
+#include <ESP32Servo.h>
 
-// put function declarations here:
-int myFunction(int, int);
+Servo myServo;
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+    myServo.attach(18);  // GPIO pin
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-}
+    myServo.write(0);
+    delay(1000);
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+    myServo.write(90);
+    delay(1000);
+
+    myServo.write(180);
+    delay(1000);
 }
