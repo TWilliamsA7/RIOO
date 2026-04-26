@@ -20,6 +20,7 @@
 #define PING_INTERVAL 33 // (ms)
 
 constexpr float COLLISION_WARNING_DISTANCE = 8.0;
+constexpr float COLLISION_AVOIDANCE_DISTANCE = 4.0;
 
 // === SERVOS === //
 
