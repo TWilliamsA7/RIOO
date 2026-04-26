@@ -3,7 +3,7 @@
 #include "sensors/tof.h"
 #include "Arduino.h"
 
-JointAngles calculateIK(Point target) {
+JointAngles calculateIK() {
     JointAngles angles;
 
     // 1. Base Angle

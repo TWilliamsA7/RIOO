@@ -16,7 +16,7 @@ GazeTracker gaze;
 
 const float REACH_SPEED = 2.5;
 
-JointAngles calculateIK(Point target);
+JointAngles calculateIK();
 void computeTargetZ(float x, float y);
 
 
