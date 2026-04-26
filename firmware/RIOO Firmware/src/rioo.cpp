@@ -47,16 +47,21 @@ void runRIOO() {
             }
         }
 
-        // TODO: Grip
+        // Update the gripper to desired state
 
-        // Compute new target based on UART data
-        Point target = computeTargetPoint(gazeCommand.xPos, gazeCommand.yPos);
-    
-        // Use IK to calculate expected angles of joints
-        JointAngles ja = calculateIK(target);
-    
-        // Update servos based on computed angles
-        updateServos(ja);
+        toggleGrip(gazeCommand.grab);
+
+        // Only move ARM when the claw is not moving
+        if (clawActionDone) {
+            // Compute new target based on UART data
+            Point target = computeTargetPoint(gazeCommand.xPos, gazeCommand.yPos);
+        
+            // Use IK to calculate expected angles of joints
+            JointAngles ja = calculateIK(target);
+        
+            // Update servos based on computed angles
+            updateServos(ja);
+        }
     }
 }
 

@@ -3,8 +3,8 @@
 #include <utility.h>
 
 void setup() {
+  initializeLEDs();
   Serial.begin(115200);
-  initializeBuiltinLED();
 }
 
 unsigned long lastPrintTime = 0;
