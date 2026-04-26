@@ -27,7 +27,7 @@ is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
 # --- SERIAL SETUP ---
 try:
-    ser = serial.Serial('/dev/ttyAMA0', 115200, timeout=1)
+    ser = serial.Serial('/dev/serial0', 115200, timeout=1)
     time.sleep(2)
     print("ESP32 Connected.")
 except:
