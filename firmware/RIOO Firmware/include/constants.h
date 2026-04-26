@@ -4,6 +4,7 @@
 // LEDS
 
 #define BUILTIN_LED_PIN 2
+#define WARNING_LED_PIN 4
 
 // ULTRASONIC SENSORS
 

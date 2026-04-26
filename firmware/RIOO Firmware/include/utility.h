@@ -4,9 +4,11 @@
 #include <Arduino.h>
 
 // Initialize On-Board LED
-void initializeBuiltinLED(void);
+void initializeLEDs(void);
 
 // Blink On-Board LED
 void heartbeatLED(void);
+
+void flashWarningLED(void);
 
 #endif // UTILITY_H
