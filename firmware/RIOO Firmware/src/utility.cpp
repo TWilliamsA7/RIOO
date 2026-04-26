@@ -3,6 +3,10 @@
 
 void initializeLEDs(void) {
     pinMode(BUILTIN_LED_PIN, OUTPUT);
+    pinMode(WARNING_LED_PIN, OUTPUT);
+    pinMode(CALIBRATION_LED_PIN, OUTPUT);
+    digitalWrite(WARNING_LED_PIN, LOW);
+    digitalWrite(CALIBRATION_LED_PIN, LOW);
 }
 
 
@@ -29,5 +33,9 @@ void flashWarningLED() {
         digitalWrite(WARNING_LED_PIN, ledState);
         lastFlash = millis();
     }
+}
+
+void enableCalibrationLED() {
+    digitalWrite(CALIBRATION_LED_PIN, HIGH);
 }
 

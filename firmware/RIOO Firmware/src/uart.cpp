@@ -1,14 +1,15 @@
 #include "uart.h"
 #include <HardwareSerial.h>
 #include <Arduino.h>
+#include "utility.h"
 
 GazeCommand currentCommand = {0.0f, 0.0f, false};
 HardwareSerial SerialPi(2);
 
-float min_working_x;
-float max_working_x;
-float min_working_y;
-float max_working_y;
+float min_working_x = -1.0f;
+float max_working_x = 1.0f;
+float min_working_y =  -1.0f;
+float max_working_y = 1.0f;
 
 void parseCalibration(String data);
 void parseTracking(String input);
@@ -76,6 +77,7 @@ void parseCalibration(String data) {
         min_working_y = data.substring(c2 + 1, c3).toFloat();
         max_working_y = data.substring(c3 + 1).toFloat();
         
+        enableCalibrationLED();
         Serial.println("Workspace Calibrated!");
     }
 }

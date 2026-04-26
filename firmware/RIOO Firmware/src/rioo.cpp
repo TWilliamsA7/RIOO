@@ -14,13 +14,6 @@ void initializeRIOO() {
     initializeServos();
     initializeTOF();
     Serial.println("Finished Initialization!");
-
-    /* 
-        TODO: Calibration Step 
-        Have the user look at specific spots marked on
-        the table to set the bounds of the robot. 
-        We should have this in setup
-    */
 }
 
 unsigned long lastLoopTime = 0;
@@ -31,8 +24,9 @@ void runRIOO() {
 
     unsigned long currentTime = millis();
 
-
     if (currentTime - lastLoopTime >= LOOP_INTERVAL) {
+
+        heartbeatLED();
 
         // Check collision sensors
         updateCollisionSensors();
