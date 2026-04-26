@@ -37,6 +37,7 @@ const float MAX_REACH = 300.0;
 
 // === ARM RESPONSIVENESS PARAMETERS === //
 
+constexpr int LOOP_INTERVAL = 20;
 constexpr float PLANAR_ALPHA = 0.25;
 
 #endif // CONSTANTS_H
