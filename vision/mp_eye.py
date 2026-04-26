@@ -167,7 +167,7 @@ while True:
         # 5. SEND TO ESP32 (Format: X{.2f}Z:{.2f}G{})
         if ser:
             data = f"X{smooth_x:.2f}Z:{smooth_z:.2f}G{int(claw_open)}\n"
-            ser.write(f"X{smooth_x:.2f}Z:{smooth_z:.2f}G{int(claw_open)}\n")
+            ser.write(f"X{smooth_x:.2f}Z:{smooth_z:.2f}G{int(claw_open)}\n".encode())
             print(f"Sent: {data.strip()}")
 
     if not is_headless:
