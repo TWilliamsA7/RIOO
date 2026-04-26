@@ -20,4 +20,7 @@ void updateServos(JointAngles ja);
 // Incremental Movement of a single servo towards angle
 void updateServo(ServoPlacement plc, float angle);
 
+// Execute Grip and Release
+void toggleGrip(bool grab);
+
 #endif // SERVO_H
