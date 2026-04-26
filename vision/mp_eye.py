@@ -18,6 +18,11 @@ ALPHA = 0.15             # Smoothing factor
 EYE_SENS_X = 2.5         # CRANKED UP: 5cm travel means this needs to be high
 EYE_SENS_Y = 2.0         
 
+# Gesture Sensitivity
+EYE_CLOSED_THRESHOLD = 0.012  # Below this = eyes closed
+BROW_RAISE_THRESHOLD = 0.045  # Above this = eyebrows raised
+EYE_CLOSE_DURATION = 2.0      # Seconds to trigger claw close
+
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
 # --- SERIAL SETUP ---
@@ -58,11 +63,16 @@ face_3d_model = np.array([
 cam = CameraStream().start()
 smooth_x, smooth_z = 0.0, 0.0
 
+# Gesture State
+claw_open = False  # Starts closed (G0)
+eye_close_start_time = None
+
 # Calibration Deltas
 calib_total_yaw, calib_total_pitch = 0.0, 0.0
 
 print("\n" + "="*50)
 print("ACTION: STARE AT THE ROBOT BASE AND HIT SPACE")
+print("GESTURES: RAISE BROWS (OPEN) | CLOSE EYES 2S (CLOSE)")
 print("="*50 + "\n")
 
 while True:
@@ -77,27 +87,16 @@ while True:
     if results.multi_face_landmarks:
         mesh = results.multi_face_landmarks[0].landmark
         
-        # --- ENHANCED VISUAL DIAGNOSTICS ---
-        # Blue for Pose Landmarks, Cyan/Yellow for Gaze logic
+        # --- VISUAL DIAGNOSTICS ---
         pose_landmarks = [1, 152, 33, 263, 61, 291]
         gaze_landmarks = [468, 473, 159, 386, 247, 467, 133, 362]
+        gesture_landmarks = [105, 334, 145, 374] # Brows and bottom lids
 
-        for idx in pose_landmarks + gaze_landmarks:
+        for idx in pose_landmarks + gaze_landmarks + gesture_landmarks:
             point = mesh[idx]
             cx, cy = int(point.x * w), int(point.y * h)
-            
-            # Distinguish between pose (SolvePnP) and gaze points
             color = (255, 255, 0) if idx in gaze_landmarks else (255, 0, 0)
-            
             cv2.circle(frame, (cx, cy), 2, color, -1)
-            cv2.putText(frame, str(idx), (cx + 3, cy + 3), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
-
-        # Visualizing the Eye Width "Scale" lines
-        for l, r in [(133, 33), (362, 263)]:
-            p1 = (int(mesh[l].x * w), int(mesh[l].y * h))
-            p2 = (int(mesh[r].x * w), int(mesh[r].y * h))
-            cv2.line(frame, p1, p2, (0, 255, 0), 1)
 
         # 1. HEAD POSE (SolvePnP)
         img_pts = np.array([
@@ -111,52 +110,71 @@ while True:
         angles, _, _, _, _, _ = cv2.RQDecomp3x3(rmat)
         hy, hp = angles[1], angles[0]
 
-        # 2. DROOP-PROOF EYE LOGIC
+        # 2. GAZE LOGIC
         def get_gaze_delta(iris_idx, x_ref_idx, y_ref_idx, l_corner, r_corner):
-            # Scale against eye width
             scale = abs(mesh[r_corner].x - mesh[l_corner].x)
-            dx = (mesh[iris_idx].x - mesh[x_ref_idx].x) / scale
-            dy = (mesh[iris_idx].y - mesh[y_ref_idx].y) / scale
+            dx = (mesh[iris_idx].x - mesh[x_ref_idx].x) / (scale + 1e-6)
+            dy = (mesh[iris_idx].y - mesh[y_ref_idx].y) / (scale + 1e-6)
             return dx, dy
 
         rx, ry = get_gaze_delta(468, 159, 247, 133, 33)
         lx, ly = get_gaze_delta(473, 386, 467, 362, 263)
         
-        # Combine Eye + Head into a single "Ray Angle"
         total_yaw = math.radians(hy) + ((lx + rx) / 2.0) * EYE_SENS_X
         total_pitch = math.radians(hp) - ((ly + ry) / 2.0) * EYE_SENS_Y
 
-        # 3. THE "ZEROING" MATH
+        # 3. GESTURE LOGIC (Eyebrows & Long Blink)
+        # Vertical distances normalized by eye-to-eye distance for stability
+        eye_dist = math.dist([mesh[33].x, mesh[33].y], [mesh[263].x, mesh[263].y])
+        
+        # EAR (Eye Aspect Ratio) proxy using vertical lid distance
+        left_ear = abs(mesh[159].y - mesh[145].y)
+        right_ear = abs(mesh[386].y - mesh[374].y)
+        avg_ear = (left_ear + right_ear) / 2.0
+        
+        # Brow Raise distance (brow to upper lid)
+        left_brow_dist = abs(mesh[105].y - mesh[159].y)
+        right_brow_dist = abs(mesh[334].y - mesh[386].y)
+        avg_brow = (left_brow_dist + right_brow_dist) / 2.0
+
+        # Claw Open Logic: Eyebrow Raise
+        if avg_brow > BROW_RAISE_THRESHOLD:
+            claw_open = True
+        
+        # Claw Close Logic: Long Eye Closure (2 seconds)
+        if avg_ear < EYE_CLOSED_THRESHOLD:
+            if eye_close_start_time is None:
+                eye_close_start_time = time.time()
+            elif time.time() - eye_close_start_time >= EYE_CLOSE_DURATION:
+                claw_open = False
+        else:
+            eye_close_start_time = None
+
+        # 4. MATH & SMOOTHING
         delta_yaw = total_yaw - calib_total_yaw
         delta_pitch = total_pitch - calib_total_pitch
-
-        # 4. TRIGONOMETRY (X and Z travel on the table)
         raw_x = CAM_HEIGHT_ABOVE_TABLE * math.tan(delta_yaw)
         raw_z = CAM_HEIGHT_ABOVE_TABLE * math.tan(delta_pitch)
 
-        # 5. ROBOT ABSOLUTE TRANSLATION
-        target_x = raw_x 
-        target_z = raw_z
-
-        # 6. SMOOTHING
-        smooth_x = (ALPHA * target_x) + (1 - ALPHA) * smooth_x
-        smooth_z = (ALPHA * target_z) + (1 - ALPHA) * smooth_z
+        smooth_x = (ALPHA * raw_x) + (1 - ALPHA) * smooth_x
+        smooth_z = (ALPHA * raw_z) + (1 - ALPHA) * smooth_z
 
         # --- TERMINAL OUTPUT ---
-        print(f"X: {smooth_x:6.1f} | Z: {smooth_z:6.1f} | HEAD: {hy:5.1f}", end='\r')
+        status = "OPEN" if claw_open else "CLOSED"
+        print(f"X: {smooth_x:6.1f} | Z: {smooth_z:6.1f} | G: {status} | EAR: {avg_ear:.3f}", end='\r')
 
-        # 7. SEND TO ESP32
+        # 5. SEND TO ESP32 (Format: X{.2f}Z:{.2f}G{})
         if ser:
-            data = f"{smooth_x:.1f},{ROBOT_BASE_Y:.1f},{smooth_z:.1f}\n"
+            data = f"X{smooth_x:.2f}Z:{smooth_z:.2f}G{int(claw_open)}\n"
             ser.write(data.encode())
 
     if not is_headless:
-        cv2.imshow('HackABull Diagnostic', frame)
+        cv2.imshow('HackABull Control', frame)
         key = cv2.waitKey(1) & 0xFF
         if key == ord(' '):
             calib_total_yaw = total_yaw
             calib_total_pitch = total_pitch
-            print("\n>>> ZEROED: Robot Base is now 0,0. <<<\n")
+            print("\n>>> ZEROED <<<\n")
         elif key == ord('q'): break
 
 cam.stop()
