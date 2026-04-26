@@ -123,10 +123,7 @@ while True:
         total_yaw = math.radians(hy) + ((lx + rx) / 2.0) * EYE_SENS_X
         total_pitch = math.radians(hp) - ((ly + ry) / 2.0) * EYE_SENS_Y
 
-        # 3. GESTURE LOGIC (Eyebrows & Long Blink)
-        # Vertical distances normalized by eye-to-eye distance for stability
-        eye_dist = math.dist([mesh[33].x, mesh[33].y], [mesh[263].x, mesh[263].y])
-        
+        # 3. GESTURE LOGIC (Stateful)
         # EAR (Eye Aspect Ratio) proxy using vertical lid distance
         left_ear = abs(mesh[159].y - mesh[145].y)
         right_ear = abs(mesh[386].y - mesh[374].y)
@@ -137,11 +134,11 @@ while True:
         right_brow_dist = abs(mesh[334].y - mesh[386].y)
         avg_brow = (left_brow_dist + right_brow_dist) / 2.0
 
-        # Claw Open Logic: Eyebrow Raise
+        # Claw Open Logic: Eyebrow Raise (Set to True, else no change)
         if avg_brow > BROW_RAISE_THRESHOLD:
             claw_open = True
         
-        # Claw Close Logic: Long Eye Closure (2 seconds)
+        # Claw Close Logic: Long Eye Closure (Set to False after 2s, else no change)
         if avg_ear < EYE_CLOSED_THRESHOLD:
             if eye_close_start_time is None:
                 eye_close_start_time = time.time()
