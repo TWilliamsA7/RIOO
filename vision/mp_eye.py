@@ -77,11 +77,27 @@ while True:
     if results.multi_face_landmarks:
         mesh = results.multi_face_landmarks[0].landmark
         
-        # --- DRAW VISUAL DOTS ---
-        # Blue: X-Ref, Green: Y-Ref (Orbital bone), Red: Irises
-        for idx, color in [(159, (255,0,0)), (386, (255,0,0)), (247, (0,255,0)), 
-                           (467, (0,255,0)), (468, (0,0,255)), (473, (0,0,255))]:
-            cv2.circle(frame, (int(mesh[idx].x*w), int(mesh[idx].y*h)), 2, color, -1)
+        # --- ENHANCED VISUAL DIAGNOSTICS ---
+        # Blue for Pose Landmarks, Cyan/Yellow for Gaze logic
+        pose_landmarks = [1, 152, 33, 263, 61, 291]
+        gaze_landmarks = [468, 473, 159, 386, 247, 467, 133, 362]
+
+        for idx in pose_landmarks + gaze_landmarks:
+            point = mesh[idx]
+            cx, cy = int(point.x * w), int(point.y * h)
+            
+            # Distinguish between pose (SolvePnP) and gaze points
+            color = (255, 255, 0) if idx in gaze_landmarks else (255, 0, 0)
+            
+            cv2.circle(frame, (cx, cy), 2, color, -1)
+            cv2.putText(frame, str(idx), (cx + 3, cy + 3), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+
+        # Visualizing the Eye Width "Scale" lines
+        for l, r in [(133, 33), (362, 263)]:
+            p1 = (int(mesh[l].x * w), int(mesh[l].y * h))
+            p2 = (int(mesh[r].x * w), int(mesh[r].y * h))
+            cv2.line(frame, p1, p2, (0, 255, 0), 1)
 
         # 1. HEAD POSE (SolvePnP)
         img_pts = np.array([
@@ -111,17 +127,14 @@ while True:
         total_pitch = math.radians(hp) - ((ly + ry) / 2.0) * EYE_SENS_Y
 
         # 3. THE "ZEROING" MATH
-        # This makes current gaze angle relative to the angle when you hit Space
         delta_yaw = total_yaw - calib_total_yaw
         delta_pitch = total_pitch - calib_total_pitch
 
         # 4. TRIGONOMETRY (X and Z travel on the table)
-        # Using the actual 200mm height you measured
         raw_x = CAM_HEIGHT_ABOVE_TABLE * math.tan(delta_yaw)
         raw_z = CAM_HEIGHT_ABOVE_TABLE * math.tan(delta_pitch)
 
         # 5. ROBOT ABSOLUTE TRANSLATION
-        # When delta is 0 (looking at base), target_x should be 0 relative to robot
         target_x = raw_x 
         target_z = raw_z
 
@@ -134,7 +147,6 @@ while True:
 
         # 7. SEND TO ESP32
         if ser:
-            # We send coordinates where 0,0,0 is the Robot Base
             data = f"{smooth_x:.1f},{ROBOT_BASE_Y:.1f},{smooth_z:.1f}\n"
             ser.write(data.encode())
 
