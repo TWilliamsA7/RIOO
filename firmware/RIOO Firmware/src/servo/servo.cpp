@@ -3,6 +3,7 @@
 #include "constants.h"
 
 ServoAngles servoAngles = { 0.0f, 0.0f, 0.0f };
+bool clawActionDone = true;
 
 void initializeServos() {
     servoAngles = {0, 0, 0};
@@ -82,10 +83,16 @@ void toggleGrip(bool grab) {
     if (grab) {
         if (currentGripPos < GRIP_CLOSED) {
             currentGripPos += GRIP_SPEED;
+            clawActionDone = false;
+        } else {
+            clawActionDone = true;
         }
-    }else {
+    } else {
         if (currentGripPos > GRIP_OPEN) {
             currentGripPos -= RELEASE_SPEED;
+            clawActionDone = false;
+        } else {
+            clawActionDone = true;
         }
     }
 

@@ -18,6 +18,8 @@
 #define ULTRASONIC_NUM 2
 #define PING_INTERVAL 33 // (ms)
 
+constexpr float COLLISION_WARNING_DISTANCE = 8.0;
+
 // === SERVOS === //
 
 #define BASE_SERVO_PIN 13

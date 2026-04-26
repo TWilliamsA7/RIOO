@@ -4,6 +4,7 @@
 #include "sensors/tof.h"
 #include "sensors/ultrasonic.h"
 #include "constants.h"
+#include "utility.h"
 
 float min_working_x;
 float max_working_x;
@@ -11,6 +12,7 @@ float min_working_y;
 float max_working_y;
 
 void initializeRIOO() {
+    initializeLEDs();
     initializeUART();
     initializeServos();
     initializeTOF();
@@ -32,7 +34,21 @@ void runRIOO() {
 
     unsigned long currentTime = millis();
 
+
     if (currentTime - lastLoopTime >= LOOP_INTERVAL) {
+
+        // Check collision sensors
+        updateCollisionSensors();
+
+        // Iterate over distances
+        for (int i = 0; i < ULTRASONIC_NUM; i++) {
+            if (collisionSensorDistances[i] < COLLISION_WARNING_DISTANCE) {
+                flashWarningLED();
+            }
+        }
+
+        // TODO: Grip
+
         // Compute new target based on UART data
         Point target = computeTargetPoint(gazeCommand.xPos, gazeCommand.yPos);
     
