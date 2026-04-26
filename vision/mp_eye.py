@@ -126,7 +126,7 @@ while True:
 
         # --- SEND TO ESP32 ---
         if ser:
-            data_packet = f"{cart_x:.2f},{cart_y:.2f}\n"
+            data_packet = f"{cart_x:.3f},{cart_y:.3f}\n"
             ser.write(data_packet.encode('utf-8'))
 
     if not is_headless:
