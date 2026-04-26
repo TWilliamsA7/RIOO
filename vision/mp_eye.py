@@ -166,7 +166,7 @@ while True:
             return (rx * 2.0) - 1.0, -((ry * 2.0) - 1.0)
 
         lx, ly = get_gaze(473, 362, 263, 467, 374)
-        rx, ry = get_gaze(468, 133, 33, 159, 145)
+        rx, ry = get_gaze(468, 133, 33, 247, 145)
 
         raw_eye_x = (lx + rx) / 2.0
         raw_eye_y = (ly + ry) / 2.0
