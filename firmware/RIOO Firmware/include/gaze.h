@@ -1,26 +1,31 @@
 #ifndef GAZE_H
 #define GAZE_H
 
+#include <Arduino.h>
+
 struct GazePoint {
     float x;
     float y;
     unsigned long timestamp;
 };
 
-// Sliding window size for finding steady gaze
-const int WINDOW_SIZE = 20;
+class GazeTracker {
+public:
+    static const int WINDOW_SIZE = 20;
+    static constexpr float STABILITY_RADIUS = 15.0f;
+    static const int OUTLIER_TOLERANCE = 3;
 
-// Allowable tolerance for a point to classify as a steady gaze
-const float STABILITY_RADIUS = 15.0;
+    GazeTracker();
 
-// Allowable number of misses for tolerance in classifying steady gaze
-const int OUTLIER_TOLERANCE = 3;
+    bool update(float x, float y);  // returns true if stable
 
-GazePoint gazeBuffer[WINDOW_SIZE];
-int gazeBufferFront = 0, gazeBufferRear = -1;
-int gazeBufferCount = 0;
+private:
+    GazePoint buffer[WINDOW_SIZE];
+    int front;
+    int count;
 
-bool isGazeStable(float newX, float newY);
+    void addPoint(float x, float y);
+    bool isStable();
+};
 
-
-#endif // GAZE_H
+#endif

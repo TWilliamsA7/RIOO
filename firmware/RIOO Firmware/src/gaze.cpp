@@ -1,54 +1,69 @@
 #include "gaze.h"
-#include "Arduino.h"
 
-bool isGazeBufferFull();
-void addGazePoint(float x, float y);
+// Precompute squared radius (avoid sqrt)
+static constexpr float STABILITY_RADIUS_SQ =
+    GazeTracker::STABILITY_RADIUS * GazeTracker::STABILITY_RADIUS;
 
-bool isGazeStable(float newX, float newY) {
-    addGazePoint(newX, newY);
+GazeTracker::GazeTracker() {
+    front = 0;
+    count = 0;
+}
 
-    if (gazeBufferCount < WINDOW_SIZE) return false;
+void GazeTracker::addPoint(float x, float y) {
+    int index = (front + count) % WINDOW_SIZE;
 
-    // Calculate Centroid
-    float avgX = 0, avgY = 0;
-    for (const auto& p : gazeBuffer) {
-        avgX += p.x;
-        avgY += p.y;
+    buffer[index].x = x;
+    buffer[index].y = y;
+    buffer[index].timestamp = millis();
+
+    if (count < WINDOW_SIZE) {
+        count++;
+    } else {
+        // overwrite oldest
+        front = (front + 1) % WINDOW_SIZE;
     }
-    avgX /= WINDOW_SIZE;
-    avgY /= WINDOW_SIZE;
+}
 
-    // Check for outliers
-    int gazeMisses = 0;
+bool GazeTracker::update(float x, float y) {
+    addPoint(x, y);
 
-    for (const auto& p : gazeBuffer) {
-        float distance = sqrt(pow(p.x - avgX, 2) + pow(p.y - avgY, 2));
-        if (distance > STABILITY_RADIUS) {
-            gazeMisses++;
-        }
-        if (gazeMisses > OUTLIER_TOLERANCE) {
-            return false;
+    if (count < WINDOW_SIZE) return false;
+
+    return isStable();
+}
+
+bool GazeTracker::isStable() {
+    float avgX = 0.0f;
+    float avgY = 0.0f;
+
+    // Compute centroid
+    for (int i = 0; i < count; i++) {
+        int idx = (front + i) % WINDOW_SIZE;
+        avgX += buffer[idx].x;
+        avgY += buffer[idx].y;
+    }
+
+    avgX /= count;
+    avgY /= count;
+
+    int misses = 0;
+
+    // Check deviation using squared distance
+    for (int i = 0; i < count; i++) {
+        int idx = (front + i) % WINDOW_SIZE;
+
+        float dx = buffer[idx].x - avgX;
+        float dy = buffer[idx].y - avgY;
+
+        float distSq = dx * dx + dy * dy;
+
+        if (distSq > STABILITY_RADIUS_SQ) {
+            misses++;
+            if (misses > OUTLIER_TOLERANCE) {
+                return false;
+            }
         }
     }
 
     return true;
-}
-
-bool isGazeBufferFull() {
-    return (gazeBufferFront == gazeBufferRear + 1) || (gazeBufferFront == 0 && gazeBufferRear == WINDOW_SIZE - 1);
-}
-
-void addGazePoint(float x, float y) {
-
-    GazePoint g;
-    g.x = x; g.y = y;
-    g.timestamp = millis();
-
-    if (gazeBufferCount == WINDOW_SIZE) {
-        gazeBufferFront = (gazeBufferFront + 1) % WINDOW_SIZE;
-        gazeBufferCount--;
-    }
-    gazeBufferRear = (gazeBufferRear + 1) % WINDOW_SIZE;
-    gazeBuffer[gazeBufferRear] = g;
-    gazeBufferCount++;
 }
