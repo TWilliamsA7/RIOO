@@ -95,6 +95,7 @@ Safety is handled via the `NewPing` library using a polling-based approach to pr
 
 1. Ensure that servos are set to their mechanical zero before assembly
 2. Connect all grounds together in a star configuration to ensure valid signals and power transfer
+3. Assembled all parts and secured connections for an efficient machine design
 
 ---
 
