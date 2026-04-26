@@ -22,10 +22,6 @@ class CameraStream:
     def update(self):
         while not self.stopped:
             self.ret, self.frame = self.stream.read()
-            if self.ret:
-                # --- APPLY ORIENTATION FIXES HERE ---
-                self.frame = cv2.rotate(self.frame, cv2.ROTATE_180)
-                self.frame = cv2.flip(self.frame, 1) # Horizontal flip
 
     def read(self):
         return self.ret, self.frame
@@ -70,6 +66,10 @@ while True:
     ret, frame = cam.read()
     if not ret: break
 
+    # APPLY ORIENTATION FIXES HERE (Main loop, not threading)
+    frame = cv2.rotate(frame, cv2.ROTATE_180)
+    frame = cv2.flip(frame, 1)
+
     h, w, _ = frame.shape
     small_frame = cv2.resize(frame, (320, 240))
     rgb_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
@@ -82,7 +82,7 @@ while True:
         iris = landmarks[473]
         inner_corner = landmarks[362]
         outer_corner = landmarks[263]
-        top_edge = landmarks[386]
+        top_edge = landmarks[286]
         bottom_edge = landmarks[374]
         
         # --- GAZE MATH (RAW RATIOS) ---
