@@ -8,7 +8,7 @@ import threading
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
 # ==========================================
-# PHYSICAL REACH LIMITS (NOW IN MILLIMETERS)
+# PHYSICAL REACH LIMITS (IN MILLIMETERS)
 # ==========================================
 # How far (in mm) can the arm reach from its center point?
 MAX_REACH_X = 150.0  # 150mm left or right (15cm)
@@ -84,6 +84,12 @@ print("Stream connected! Tracking gaze...")
 offset_x = 0.0
 offset_y = 0.0
 
+# Smoothing Variables
+smooth_x = 0.0
+smooth_y = 0.0
+# SMOOTHING_FACTOR: Between 0.01 and 1.0. Lower = Smoother. Higher = Faster.
+SMOOTHING_FACTOR = 0.15 
+
 while True:
     ret, frame = cam.read()
     if not ret or frame is None: 
@@ -122,17 +128,21 @@ while True:
         else:
             ratio_y = 0.5
 
-        cart_x = (ratio_x * 2.0) - 1.0
-        cart_y = -((ratio_y * 2.0) - 1.0)
+        raw_x = (ratio_x * 2.0) - 1.0
+        raw_y = -((ratio_y * 2.0) - 1.0)
 
-        cart_x = max(-1.0, min(1.0, cart_x))
-        cart_y = max(-1.0, min(1.0, cart_y))
+        raw_x = max(-1.0, min(1.0, raw_x))
+        raw_y = max(-1.0, min(1.0, raw_y))
+
+        # --- THE SMOOTHING FILTER ---
+        smooth_x = (SMOOTHING_FACTOR * raw_x) + ((1.0 - SMOOTHING_FACTOR) * smooth_x)
+        smooth_y = (SMOOTHING_FACTOR * raw_y) + ((1.0 - SMOOTHING_FACTOR) * smooth_y)
 
         # --- APPLY CALIBRATION OFFSET ---
-        active_x = cart_x - offset_x
-        active_y = cart_y - offset_y
+        active_x = smooth_x - offset_x
+        active_y = smooth_y - offset_y
 
-        # Clamp the active zone so looking away doesn't break the arm
+        # Clamp the active zone so looking away doesn't send wild values
         active_x = max(-1.0, min(1.0, active_x))
         active_y = max(-1.0, min(1.0, active_y))
 
@@ -150,8 +160,13 @@ while True:
 
         # --- SEND TO ESP32 ---
         if ser:
-            data_packet = f"{target_x:.1f},{target_y:.1f},{target_z:.1f}\n"
-            ser.write(data_packet.encode('utf-8'))
+            if active_x < -0.6 and active_y < -0.6:
+                ser.write(b'U') 
+            elif active_x > 0.6 and active_y < -0.6:
+                ser.write(b'V')
+            else:
+                data_packet = f"{target_x:.1f},{target_y:.1f},{target_z:.1f}\n"
+                ser.write(data_packet.encode('utf-8'))
 
     # --- KEYBOARD LOGIC ---
     if not is_headless:
@@ -160,8 +175,9 @@ while True:
         if key == ord('q'): 
             break
         elif key == ord(' '): 
-            offset_x = cart_x
-            offset_y = cart_y
+            # Calibrate using the current smoothed position
+            offset_x = smooth_x
+            offset_y = smooth_y
             print(f">>> CALIBRATED! Center set to current gaze. <<<")
 
 cam.stop()
