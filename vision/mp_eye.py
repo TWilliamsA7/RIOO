@@ -158,7 +158,7 @@ while True:
 
         # --- TERMINAL OUTPUT ---
         status = "OPEN" if claw_open else "CLOSED"
-        print(f"X: {smooth_x:6.1f} | Z: {smooth_z:6.1f} | G: {status} | EAR: {avg_ear:.3f}", end='\r')
+        print(f"X: {smooth_x:6.1f} | Z: {smooth_z:6.1f} | G: {status} | EAR: {avg_ear:.3f} | ARVBROW:{avg_brow:.3f}", end='\r')
 
         # 5. SEND TO ESP32 (Format: X{.2f}Z:{.2f}G{})
         if ser:
