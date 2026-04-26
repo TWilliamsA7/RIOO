@@ -10,11 +10,12 @@ float max_working_x;
 float min_working_y;
 float max_working_y;
 
+RIOOState currentState = FOLLOWING;
+
 void initializeRIOO() {
     initializeUART();
     initializeServos();
     initializeTOF();
-    initializeUltrasonics();
     Serial.println("Finished Initialization!");
 
     /* 

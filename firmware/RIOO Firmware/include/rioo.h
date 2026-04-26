@@ -8,6 +8,14 @@ extern float max_working_x;
 extern float min_working_y;
 extern float max_working_y;
 
+enum RIOOState {
+    FOLLOWING,
+    GRABBING,
+    EMERGENCY
+};
+
+extern RIOOState currentState;
+
 
 void initializeRIOO();
 void runRIOO();

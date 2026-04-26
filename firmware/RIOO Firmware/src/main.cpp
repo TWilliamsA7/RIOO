@@ -1,34 +1,31 @@
 #include <Arduino.h>
 #include <ESP32Servo.h>
-#include <utility.h>
-#include <ultrasonic.h>
 
-Servo myServo;
+const int POT_PIN = 34;
+const int SERVO_PIN = 13;
+
+Servo servo;
 
 void setup() {
-
   Serial.begin(115200);
-  initializeBuiltinLED();
-  initializeUltrasonics();
 
-    // myServo.attach(18);  // GPIO pin
+  servo.setPeriodHertz(50);
+  servo.attach(SERVO_PIN, 500, 2400);
+  analogReadResolution(12);
 }
 
 void loop() {
 
-  heartbeatLED();
+  int potValue = analogRead(POT_PIN);
 
-  float dist = getDistanceCM();
-  Serial.print("Distance: ");
-  Serial.println(dist);
-  delay(50);  
+  int angle = map(potValue, 0, 4095, 0, 180);
+  servo.write(angle);
 
-    // myServo.write(0);
-    // delay(1000);
+  Serial.print("Pot: ");
+  Serial.print(potValue);
+  Serial.print(" | Angle: ");
+  Serial.println(angle);
 
-    // myServo.write(90);
-    // delay(1000);
+  delay(100); // small delay is fine here
 
-    // myServo.write(180);
-    // delay(1000);
 }
