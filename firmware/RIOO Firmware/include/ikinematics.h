@@ -11,10 +11,9 @@ struct JointAngles {
     float base, shoulder, elbow;
 };
 
-extern Point target;
 extern GazeTracker gaze;
 
-JointAngles calculateIK();
-void computeTargetZ(float x, float y);
+JointAngles calculateIK(Point& target);
+void computeTargetZ(Point& target);
 
 #endif
