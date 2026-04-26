@@ -16,13 +16,11 @@ MAX_REACH_X = 150.0  # 150mm left or right
 MAX_REACH_Z = 150.0  # 150mm forward or backward
 FIXED_Y = -100.0     # The table is 100mm below the robot base
 
-# LOWERED WEIGHTS to prevent the 150mm snap.
-# Tweak these decimals slightly if it still over/under compensates.
-HEAD_YAW_WEIGHT = 0.005   
-HEAD_PITCH_WEIGHT = 0.005 
-
-# Smoothing Factor (0.01 to 1.0)
-SMOOTHING_FACTOR = 0.15 
+# HEAD POSE WEIGHTS:
+# Do the Freeze Test! If you turn your head left, and the arm snaps left,
+# flip the minus (-) to a plus (+) in the "MERGING" section below.
+HEAD_YAW_WEIGHT = 0.02   
+HEAD_PITCH_WEIGHT = 0.02 
 # ==========================================
 
 # --- Fixed Camera Class (Thread Safe) ---
@@ -127,12 +125,12 @@ while True:
         # 1. SOLVE PNP (HEAD POSE ESTIMATION)
         # ==========================================
         face_2d_image = np.array([
-            (landmarks[1].x * w, landmarks[1].y * h),     # Nose tip
-            (landmarks[152].x * w, landmarks[152].y * h), # Chin
-            (landmarks[33].x * w, landmarks[33].y * h),   # Left eye left corner
-            (landmarks[263].x * w, landmarks[263].y * h), # Right eye right corner
-            (landmarks[61].x * w, landmarks[61].y * h),   # Left Mouth corner
-            (landmarks[291].x * w, landmarks[291].y * h)  # Right mouth corner
+            (landmarks[1].x * w, landmarks[1].y * h),     
+            (landmarks[152].x * w, landmarks[152].y * h), 
+            (landmarks[33].x * w, landmarks[33].y * h),   
+            (landmarks[263].x * w, landmarks[263].y * h), 
+            (landmarks[61].x * w, landmarks[61].y * h),   
+            (landmarks[291].x * w, landmarks[291].y * h)  
         ], dtype=np.float64)
 
         focal_length = 1.0 * w
@@ -141,13 +139,14 @@ while True:
                                [0, 0, 1]], dtype=np.float64)
         dist_matrix = np.zeros((4, 1), dtype=np.float64)
 
-        success, rvec, tvec = cv2.solvePnP(face_3d_model, face_2d_image, cam_matrix, dist_matrix, flags=cv2.SOLVEPNP_ITERATIVE)
+        # Swapped to SQPNP for ultra-stable, non-drifting head rotation
+        success, rvec, tvec = cv2.solvePnP(face_3d_model, face_2d_image, cam_matrix, dist_matrix, flags=cv2.SOLVEPNP_SQPNP)
         rmat, _ = cv2.Rodrigues(rvec)
         angles, _, _, _, _, _ = cv2.RQDecomp3x3(rmat)
 
-        head_pitch = angles[0] # Nodding up/down
-        head_yaw = angles[1]   # Turning left/right
-        head_roll = angles[2]  # Tilting side to side
+        head_pitch = angles[0] 
+        head_yaw = angles[1]   
+        head_roll = angles[2]  
 
         # ==========================================
         # 2. DUAL EYE TRACKING (AVERAGED)
@@ -166,32 +165,42 @@ while True:
             ry = (iris.y - top.y) / eye_h if eye_h != 0 else 0.5
             return (rx * 2.0) - 1.0, -((ry * 2.0) - 1.0)
 
-        # Left Eye (From camera perspective)
         lx, ly = get_gaze(473, 362, 263, 467, 374)
-        # Right Eye (From camera perspective)
         rx, ry = get_gaze(468, 133, 33, 159, 145)
 
         raw_eye_x = (lx + rx) / 2.0
         raw_eye_y = (ly + ry) / 2.0
 
         # ==========================================
-        # 3. MERGING HEAD POSE AND GAZE (All 3 Axes)
+        # 3. MERGING HEAD POSE AND GAZE
         # ==========================================
-        # Un-tilt the Roll
         roll_rad = math.radians(head_roll)
         derolled_x = (raw_eye_x * math.cos(roll_rad)) - (raw_eye_y * math.sin(roll_rad))
         derolled_y = (raw_eye_x * math.sin(roll_rad)) + (raw_eye_y * math.cos(roll_rad))
 
-        # Cancel the Yaw and Pitch (Using minus signs and lowered weights)
+        # IF THE FREEZE TEST FAILS, CHANGE THE MINUS (-) TO A PLUS (+) HERE:
         combined_x = derolled_x - (head_yaw * HEAD_YAW_WEIGHT)
         combined_y = derolled_y - (head_pitch * HEAD_PITCH_WEIGHT)
 
         # ==========================================
-        # 4. SHOCK ABSORBER (SMOOTHING) & CALIBRATION
+        # 4. DYNAMIC SHOCK ABSORBER (ANTI-DRIFT)
         # ==========================================
-        smooth_x = (SMOOTHING_FACTOR * combined_x) + ((1.0 - SMOOTHING_FACTOR) * smooth_x)
-        smooth_y = (SMOOTHING_FACTOR * combined_y) + ((1.0 - SMOOTHING_FACTOR) * smooth_y)
+        delta_x = combined_x - smooth_x
+        delta_y = combined_y - smooth_y
+        distance = math.hypot(delta_x, delta_y)
 
+        # Deadzone logic to kill infinite creeping
+        if distance > 0.15:
+            current_smoothing = 0.6  # Fast snap
+        elif distance < 0.02:
+            current_smoothing = 0.0  # Deadzone freeze
+        else:
+            current_smoothing = 0.1  # Micro-correction
+
+        smooth_x += delta_x * current_smoothing
+        smooth_y += delta_y * current_smoothing
+
+        # Apply calibration offset
         active_x = smooth_x - offset_x
         active_y = smooth_y - offset_y
 
@@ -204,29 +213,32 @@ while True:
         target_z = active_y * MAX_REACH_Z
         target_y = FIXED_Y
 
-        print(f"Target -> X:{target_x:6.1f} | Y:{target_y:6.1f} | Z:{target_z:6.1f} (mm) | HeadYaw: {head_yaw:.1f}")
+        # Diagnostic print for the Freeze Test
+        print(f"RawEye: {raw_eye_x:5.2f} | Yaw: {head_yaw:5.1f} || X:{target_x:6.1f} | Z:{target_z:6.1f}")
 
         # ==========================================
         # VISUALS & COMMUNICATION
         # ==========================================
-        # Draw Left Eye Dots
         for idx in [362, 263, 467, 374]:
             cv2.circle(frame, (int(landmarks[idx].x * w), int(landmarks[idx].y * h)), 2, (0, 0, 255), -1)
         cv2.circle(frame, (int(landmarks[473].x * w), int(landmarks[473].y * h)), 3, (0, 255, 0), -1)
         
-        # Draw Right Eye Dots
         for idx in [133, 33, 159, 145]:
             cv2.circle(frame, (int(landmarks[idx].x * w), int(landmarks[idx].y * h)), 2, (0, 0, 255), -1)
         cv2.circle(frame, (int(landmarks[468].x * w), int(landmarks[468].y * h)), 3, (0, 255, 0), -1)
 
-        # Draw the 3D Head Pose Axis
         if success:
             cv2.drawFrameAxes(frame, cam_matrix, dist_matrix, rvec, tvec, 150, 2)
 
         # SEND TO ESP32
         if ser:
-            data_packet = f"{target_x:.1f},{target_y:.1f},{target_z:.1f}\n"
-            ser.write(data_packet.encode('utf-8'))
+            if active_x < -0.6 and active_y < -0.6:
+                ser.write(b'U') 
+            elif active_x > 0.6 and active_y < -0.6:
+                ser.write(b'V')
+            else:
+                data_packet = f"{target_x:.1f},{target_y:.1f},{target_z:.1f}\n"
+                ser.write(data_packet.encode('utf-8'))
 
     # --- KEYBOARD LOGIC ---
     if not is_headless:
@@ -235,7 +247,6 @@ while True:
         if key == ord('q'): 
             break
         elif key == ord(' '): 
-            # Calibrate using the current smoothed combined position
             offset_x = smooth_x
             offset_y = smooth_y
             print(f">>> CALIBRATED! Center set to current gaze. <<<")
