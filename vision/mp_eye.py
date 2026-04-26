@@ -136,7 +136,7 @@ while True:
 
         # Claw Open Logic: Eyebrow Raise (Set to True, else no change)
         if avg_brow < BROW_RAISE_THRESHOLD and avg_ear > EYE_CLOSED_THRESHOLD:
-            continue
+            print(">>> NEUTRAL <<<")
         else:
             if avg_brow > BROW_RAISE_THRESHOLD:
                 claw_open = True
