@@ -14,7 +14,6 @@ void initializeRIOO() {
     initializeUART();
     initializeServos();
     initializeTOF();
-    initializeUltrasonics();
     Serial.println("Finished Initialization!");
 
     /* 
