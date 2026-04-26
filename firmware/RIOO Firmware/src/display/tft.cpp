@@ -1,5 +1,6 @@
 #include "display/tft.h"
 
+TFT_eSPI tft = TFT_eSPI();
 
 void initializeDebugScreen() {
     tft.init();

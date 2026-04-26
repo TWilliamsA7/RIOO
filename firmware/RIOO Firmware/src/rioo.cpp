@@ -5,6 +5,7 @@
 #include "sensors/ultrasonic.h"
 #include "constants.h"
 #include "utility.h"
+#include "display/tft.h"
 
 void calculateEvasiveManeuver(JointAngles &ja);
 
@@ -41,6 +42,8 @@ void runRIOO() {
         // Update the gripper to desired state
 
         toggleGrip(gazeCommand.grab);
+
+        updateDebugScreen(gazeCommand.xPos, gazeCommand.yPos, 0, collisionSensorDistances[0], collisionSensorDistances[1]);
 
         // Only move ARM when the claw is not moving
         if (clawActionDone) {
