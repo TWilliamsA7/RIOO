@@ -168,6 +168,7 @@ while True:
         if ser:
             data = f"X{smooth_x:.2f}Z:{smooth_z:.2f}G{int(claw_open)}\n"
             ser.write(data.encode())
+            print(f"Sent: {data.strip()}")
 
     if not is_headless:
         cv2.imshow('HackABull Control', frame)
