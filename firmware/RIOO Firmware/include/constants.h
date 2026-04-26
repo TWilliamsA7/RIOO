@@ -7,8 +7,15 @@
 
 // ULTRASONIC SENSORS
 
-#define TRIG_PIN 5
-#define ECHO_PIN 12
+#define LEFT_ECHO_PIN 5
+#define LEFT_TRIG_PIN 12
+
+#define RIGHT_ECHO_PIN 26
+#define RIGHT_TRIG_PIN 27
+
+#define MAX_ULTRASONIC_DISTANCE 200 // (cm)
+#define ULTRASONIC_NUM 2
+#define PING_INTERVAL 33 // (ms)
 
 // === SERVOS === //
 

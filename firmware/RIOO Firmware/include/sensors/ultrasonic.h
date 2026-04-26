@@ -3,8 +3,6 @@
 
 #include <Arduino.h>
 
-void initializeUltrasonics();
-
-float getDistanceCM();
+void updateCollisionSensors();
 
 #endif // ULTRASONIC_H
