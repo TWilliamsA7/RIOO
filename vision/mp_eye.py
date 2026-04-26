@@ -4,16 +4,22 @@ import os
 import serial
 import time
 import threading
+import numpy as np
 
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
 # ==========================================
 # PHYSICAL REACH LIMITS (IN MILLIMETERS)
 # ==========================================
-# How far (in mm) can the arm reach from its center point?
 MAX_REACH_X = 150.0  # 150mm left or right (15cm)
 MAX_REACH_Z = 150.0  # 150mm forward or backward (15cm)
 FIXED_Y = -100.0     # The table is 100mm below the robot base (-10cm)
+
+# --- HEAD TRACKING WEIGHTS ---
+# These control how much your head turn affects the final room coordinate. 
+# If turning your head moves the arm the WRONG way, change the + to a - in the math below!
+HEAD_YAW_WEIGHT = 0.02   
+HEAD_PITCH_WEIGHT = 0.02 
 # ==========================================
 
 # --- Fixed Camera Class (Thread Safe) ---
@@ -69,6 +75,16 @@ face_mesh = mp_face_mesh.FaceMesh(
     min_tracking_confidence=0.4
 )
 
+# 3D Model Points of a Generic Human Face (For solvePnP)
+face_3d_model = np.array([
+    (0.0, 0.0, 0.0),             # Nose tip
+    (0.0, -330.0, -65.0),        # Chin
+    (-225.0, 170.0, -135.0),     # Left eye left corner
+    (225.0, 170.0, -135.0),      # Right eye right corner
+    (-150.0, -150.0, -125.0),    # Left Mouth corner
+    (150.0, -150.0, -125.0)      # Right mouth corner
+], dtype=np.float64)
+
 print("Connecting to fast camera stream...")
 cam = CameraStream().start()
 time.sleep(1) 
@@ -78,16 +94,13 @@ if not cam.ret:
     cam.stop()
     exit()
 
-print("Stream connected! Tracking gaze...")
+print("Stream connected! Tracking gaze and head pose...")
 
-# Calibration Offsets
+# Calibration Offsets & Smoothing
 offset_x = 0.0
 offset_y = 0.0
-
-# Smoothing Variables
 smooth_x = 0.0
 smooth_y = 0.0
-# SMOOTHING_FACTOR: Between 0.01 and 1.0. Lower = Smoother. Higher = Faster.
 SMOOTHING_FACTOR = 0.15 
 
 while True:
@@ -108,41 +121,71 @@ while True:
     if results.multi_face_landmarks:
         landmarks = results.multi_face_landmarks[0].landmark
         
-        # --- YOUR ORIGINAL EXACT LANDMARKS ---
+        # ==========================================
+        # 1. SOLVE PNP (HEAD POSE ESTIMATION)
+        # ==========================================
+        # Extract the 6 key points for the 3D map
+        face_2d_image = np.array([
+            (landmarks[1].x * w, landmarks[1].y * h),     # Nose tip
+            (landmarks[152].x * w, landmarks[152].y * h), # Chin
+            (landmarks[33].x * w, landmarks[33].y * h),   # Left eye left corner
+            (landmarks[263].x * w, landmarks[263].y * h), # Right eye right corner
+            (landmarks[61].x * w, landmarks[61].y * h),   # Left Mouth corner
+            (landmarks[291].x * w, landmarks[291].y * h)  # Right mouth corner
+        ], dtype=np.float64)
+
+        # Camera internals (Assuming standard webcam focal length)
+        focal_length = 1.0 * w
+        cam_matrix = np.array([[focal_length, 0, w / 2],
+                               [0, focal_length, h / 2],
+                               [0, 0, 1]], dtype=np.float64)
+        dist_matrix = np.zeros((4, 1), dtype=np.float64)
+
+        # Calculate Head Rotation Matrix
+        success, rvec, tvec = cv2.solvePnP(face_3d_model, face_2d_image, cam_matrix, dist_matrix, flags=cv2.SOLVEPNP_ITERATIVE)
+        rmat, _ = cv2.Rodrigues(rvec)
+        angles, _, _, _, _, _ = cv2.RQDecomp3x3(rmat)
+
+        head_pitch = angles[0] # Nodding up/down (Degrees)
+        head_yaw = angles[1]   # Turning left/right (Degrees)
+        head_roll = angles[2]  # Tilting side to side (Degrees)
+
+        # ==========================================
+        # 2. EYE TRACKING (YOUR EXACT ORIGINAL MATH)
+        # ==========================================
         iris = landmarks[473]
         inner_corner = landmarks[362]
         outer_corner = landmarks[263]
         top_edge = landmarks[467]
         bottom_edge = landmarks[374]
         
-        # --- YOUR ORIGINAL CARTESIAN MATH ---
         eye_width = outer_corner.x - inner_corner.x
-        if eye_width != 0:
-            ratio_x = (iris.x - inner_corner.x) / eye_width
-        else:
-            ratio_x = 0.5
+        ratio_x = (iris.x - inner_corner.x) / eye_width if eye_width != 0 else 0.5
             
         eye_height = bottom_edge.y - top_edge.y
-        if eye_height != 0:
-            ratio_y = (iris.y - top_edge.y) / eye_height
-        else:
-            ratio_y = 0.5
+        ratio_y = (iris.y - top_edge.y) / eye_height if eye_height != 0 else 0.5
 
-        raw_x = (ratio_x * 2.0) - 1.0
-        raw_y = -((ratio_y * 2.0) - 1.0)
+        raw_eye_x = (ratio_x * 2.0) - 1.0
+        raw_eye_y = -((ratio_y * 2.0) - 1.0)
 
-        raw_x = max(-1.0, min(1.0, raw_x))
-        raw_y = max(-1.0, min(1.0, raw_y))
+        # ==========================================
+        # 3. MERGING HEAD POSE AND GAZE
+        # ==========================================
+        # Combine the eye's movement with the head's physical rotation.
+        # (If moving your head moves the arm the wrong way, change the + to a - )
+        combined_x = raw_eye_x + (head_yaw * HEAD_YAW_WEIGHT)
+        combined_y = raw_eye_y + (head_pitch * HEAD_PITCH_WEIGHT)
 
-        # --- THE SMOOTHING FILTER ---
-        smooth_x = (SMOOTHING_FACTOR * raw_x) + ((1.0 - SMOOTHING_FACTOR) * smooth_x)
-        smooth_y = (SMOOTHING_FACTOR * raw_y) + ((1.0 - SMOOTHING_FACTOR) * smooth_y)
+        # ==========================================
+        # 4. SHOCK ABSORBER (SMOOTHING) & CALIBRATION
+        # ==========================================
+        smooth_x = (SMOOTHING_FACTOR * combined_x) + ((1.0 - SMOOTHING_FACTOR) * smooth_x)
+        smooth_y = (SMOOTHING_FACTOR * combined_y) + ((1.0 - SMOOTHING_FACTOR) * smooth_y)
 
-        # --- APPLY CALIBRATION OFFSET ---
         active_x = smooth_x - offset_x
         active_y = smooth_y - offset_y
 
-        # Clamp the active zone so looking away doesn't send wild values
+        # Clamp the active zone 
         active_x = max(-1.0, min(1.0, active_x))
         active_y = max(-1.0, min(1.0, active_y))
 
@@ -151,14 +194,21 @@ while True:
         target_z = active_y * MAX_REACH_Z
         target_y = FIXED_Y
 
-        print(f"Target -> X:{target_x:6.1f} | Y:{target_y:6.1f} | Z:{target_z:6.1f} (mm)")
+        print(f"Target -> X:{target_x:6.1f} | Y:{target_y:6.1f} | Z:{target_z:6.1f} (mm) | HeadYaw: {head_yaw:.1f}")
 
-        # --- YOUR ORIGINAL VISUAL DOTS ---
+        # ==========================================
+        # VISUALS & COMMUNICATION
+        # ==========================================
+        # Draw the Eye Dots
         for lm in [inner_corner, outer_corner, top_edge, bottom_edge]:
             cv2.circle(frame, (int(lm.x * w), int(lm.y * h)), 3, (0, 0, 255), -1)
         cv2.circle(frame, (int(iris.x * w), int(iris.y * h)), 4, (0, 255, 0), -1)
 
-        # --- SEND TO ESP32 ---
+        # Draw the 3D Head Pose Axis (JUDGES WILL LOVE THIS)
+        if success:
+            cv2.drawFrameAxes(frame, cam_matrix, dist_matrix, rvec, tvec, 150, 2)
+
+        # SEND TO ESP32
         if ser:
             if active_x < -0.6 and active_y < -0.6:
                 ser.write(b'U') 
@@ -170,12 +220,12 @@ while True:
 
     # --- KEYBOARD LOGIC ---
     if not is_headless:
-        cv2.imshow('Eye Tracker', frame)
+        cv2.imshow('HackABull Eye Tracker', frame)
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'): 
             break
         elif key == ord(' '): 
-            # Calibrate using the current smoothed position
+            # Calibrate using the current smoothed combined position
             offset_x = smooth_x
             offset_y = smooth_y
             print(f">>> CALIBRATED! Center set to current gaze. <<<")
