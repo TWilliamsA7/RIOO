@@ -6,10 +6,7 @@
 #include "constants.h"
 #include "utility.h"
 
-float min_working_x;
-float max_working_x;
-float min_working_y;
-float max_working_y;
+
 
 void initializeRIOO() {
     initializeLEDs();
