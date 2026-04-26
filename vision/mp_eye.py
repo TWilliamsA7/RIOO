@@ -9,7 +9,6 @@ import math
 # ==========================================
 # PHYSICAL MEASUREMENTS (RPi Cam Setup)
 # ==========================================
-# Measured in centimeters (cm)
 CAM_HEIGHT = 20.0       # cm above the table surface
 CAM_TO_ROBOT_Z = 10.0   # cm horizontal distance forward to robot base
 CAM_TO_ROBOT_Y = 10.0   # cm vertical distance DOWN from camera to robot base
@@ -22,30 +21,42 @@ V_FOV = 48.8
 
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
-# --- Fixed Camera Class (Zero Lag) ---
+# --- Fixed Camera Class (THREAD SAFE) ---
 class CameraStream:
     def __init__(self, src='tcp://127.0.0.1:8888'):
         self.stream = cv2.VideoCapture(src)
         self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 1) 
         self.ret, self.frame = self.stream.read()
         self.stopped = False
+        self.thread = None
 
     def start(self):
-        threading.Thread(target=self.update, args=(), daemon=True).start()
+        self.thread = threading.Thread(target=self.update, args=(), daemon=True)
+        self.thread.start()
         return self
 
     def update(self):
+        # Keep looping indefinitely until the thread is stopped
         while not self.stopped:
-            self.ret, self.frame = self.stream.read()
+            ret, frame = self.stream.read()
+            if ret:
+                self.ret = ret
+                self.frame = frame
+            else:
+                # If TCP lags, don't crash. Just wait a tiny bit for the next frame
+                time.sleep(0.01) 
 
     def read(self):
         return self.ret, self.frame
 
     def stop(self):
         self.stopped = True
+        # Wait for the thread to safely finish its last loop before releasing the camera
+        if self.thread is not None:
+            self.thread.join(timeout=1.0)
         self.stream.release()
 
-# --- Serial Setup (GPIO UART) ---
+# --- Serial Setup (Hardware UART AMA0) ---
 ESP_PORT = '/dev/ttyAMA0' 
 BAUD_RATE = 115200
 try:
@@ -65,12 +76,12 @@ face_mesh = mp_face_mesh.FaceMesh(
     min_tracking_confidence=0.5
 )
 
-print("Connecting to fast RPi camera stream...")
+print("Connecting to fast RPi camera TCP stream...")
 cam = CameraStream().start()
 time.sleep(1) 
 
 if not cam.ret:
-    print("Failed to open stream.")
+    print("Failed to open stream. Check your TCP connection.")
     cam.stop()
     exit()
 
@@ -82,7 +93,10 @@ offset_y = 0.0
 
 while True:
     ret, frame = cam.read()
-    if not ret: break
+    
+    # If the frame drops, don't crash the script, just skip this loop iteration
+    if not ret or frame is None: 
+        continue
 
     # APPLY ORIENTATION FIXES
     frame = cv2.rotate(frame, cv2.ROTATE_180)
@@ -158,7 +172,8 @@ while True:
             # Y-Axis offset for floating robot base
             target_y = -(CAM_HEIGHT - CAM_TO_ROBOT_Y)
         
-        print(f"Robot Target -> X:{target_x:.1f} Y:{target_y:.1f} Z:{target_z:.1f} (cm)")
+        # Make the print statement a little cleaner for your terminal
+        print(f"X:{target_x:5.1f} | Y:{target_y:5.1f} | Z:{target_z:5.1f}")
 
         # --- SEND TO ESP32 (WITH TRIGGERS) ---
         if ser:
@@ -188,6 +203,7 @@ while True:
             offset_y = norm_y
             print(f">>> CALIBRATED! Center set. <<<")
 
+# Safely shut down everything
 cam.stop()
 if ser: ser.close()
 if not is_headless: cv2.destroyAllWindows()
