@@ -76,4 +76,20 @@ void updateServo(ServoPlacement plc, float angle) {
     }
 }
 
+void toggleGrip(bool grab) {
+    static float currentGripPos = GRIP_OPEN;
+    
+    if (grab) {
+        if (currentGripPos < GRIP_CLOSED) {
+            currentGripPos += GRIP_SPEED;
+        }
+    }else {
+        if (currentGripPos > GRIP_OPEN) {
+            currentGripPos -= RELEASE_SPEED;
+        }
+    }
+
+    GripperServo.write(currentGripPos);
+}
+
 

@@ -43,6 +43,11 @@ const float MAX_JOINT = 90.0;
 const float MIN_REACH = 0.0;
 const float MAX_REACH = 300.0; // (mm)
 
+constexpr int GRIP_OPEN = 10; // (deg)
+constexpr int GRIP_CLOSED = 110; // (deg)
+constexpr float GRIP_SPEED = 0.5; 
+constexpr float RELEASE_SPEED = 2.5;
+
 // === ARM RESPONSIVENESS PARAMETERS === //
 
 constexpr int LOOP_INTERVAL = 20;
