@@ -82,7 +82,7 @@ while True:
         iris = landmarks[473]
         inner_corner = landmarks[362]
         outer_corner = landmarks[263]
-        top_edge = landmarks[286]
+        top_edge = landmarks[467]
         bottom_edge = landmarks[374]
         
         # --- GAZE MATH (RAW RATIOS) ---
