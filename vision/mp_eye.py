@@ -20,7 +20,7 @@ EYE_SENS_Y = 2.0
 
 # Gesture Sensitivity
 EYE_CLOSED_THRESHOLD = 0.012  # Below this = eyes closed
-BROW_RAISE_THRESHOLD = 0.5  # Above this = eyebrows raised
+BROW_RAISE_THRESHOLD = 0.1  # Above this = eyebrows raised
 EYE_CLOSE_DURATION = 2.0      # Seconds to trigger claw close
 
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
