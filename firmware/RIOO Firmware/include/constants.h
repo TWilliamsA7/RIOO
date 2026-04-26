@@ -32,15 +32,15 @@ constexpr float REACH_SPEED = 2.5;
 
 // === ARM MEASUREMENTS & CONSTRAINTS === //
 
-const float SHOULDER_LENGTH = 127.0;
-const float FOREARM_LENGTH = 101.6;
-const float GRIPPER_REACH = 15.0;
+const float SHOULDER_LENGTH = 127.0; // (mm)
+const float FOREARM_LENGTH = 101.6; // (mm)
+const float GRIPPER_REACH = 15.0; // (mm)
 
 const float MIN_JOINT = 0.0;
 const float MAX_JOINT = 90.0;
 
 const float MIN_REACH = 0.0;
-const float MAX_REACH = 300.0;
+const float MAX_REACH = 300.0; // (mm)
 
 // === ARM RESPONSIVENESS PARAMETERS === //
 

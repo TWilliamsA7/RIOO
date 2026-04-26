@@ -1,34 +1,24 @@
 #include <Arduino.h>
-#include <ESP32Servo.h>
+#include "sensors/ultrasonic.h"
 #include <utility.h>
-#include <ultrasonic.h>
-
-Servo myServo;
 
 void setup() {
-
   Serial.begin(115200);
   initializeBuiltinLED();
-  initializeUltrasonics();
-
-    // myServo.attach(18);  // GPIO pin
 }
+
+unsigned long lastPrintTime = 0;
 
 void loop() {
 
   heartbeatLED();
 
-  float dist = getDistanceCM();
-  Serial.print("Distance: ");
-  Serial.println(dist);
-  delay(50);  
+  updateCollisionSensors();
 
-    // myServo.write(0);
-    // delay(1000);
-
-    // myServo.write(90);
-    // delay(1000);
-
-    // myServo.write(180);
-    // delay(1000);
+  unsigned long loopTime = millis();
+  if (loopTime - lastPrintTime > 100) {
+    Serial.print("LEFT: "); Serial.println(collisionSensorDistances[0]);
+    Serial.print("RIGHT: "); Serial.println(collisionSensorDistances[1]);
+    lastPrintTime = loopTime;
+  }
 }
