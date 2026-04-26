@@ -4,7 +4,7 @@ RIOO is an assistive robotic arm controlled via real-time human gaze tracking. D
 
 Unlike standard robotic controllers, RIOO utilizes **Inverse Kinematics (IK)** and **Exponential Moving Average (EMA)** filtering to translate normalized gaze coordinates into fluid, organic movement.
 
-## 🚀 Features
+## Features
 
 - **Eye-Tracked Control:** Direct translation of gaze coordinates from a Raspberry Pi 3 vision system to physical (X, Y, Z) coordinates.
 - **Dual-Node Architecture:** Distributed processing between a Raspberry Pi (Vision/Logic) and an ESP32 (Motion/Safety).
@@ -15,7 +15,7 @@ Unlike standard robotic controllers, RIOO utilizes **Inverse Kinematics (IK)** a
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 RIOO is split into two primary processing nodes communicating over a dedicated UART bridge.
 
@@ -31,7 +31,7 @@ RIOO is split into two primary processing nodes communicating over a dedicated U
 
 ---
 
-## 🛠️ Hardware Specifications
+## Hardware Specifications
 
 | Component            | Specification                                              |
 | :------------------- | :--------------------------------------------------------- |
@@ -44,7 +44,7 @@ RIOO is split into two primary processing nodes communicating over a dedicated U
 
 ---
 
-## 📡 Communication Protocol
+## Communication Protocol
 
 Communication follows a header-based, comma/tag-separated UART protocol at **115200 Baud**.
 
@@ -62,7 +62,7 @@ _Example:_ `C-120.0,120.0,50.0,200.0`
 
 ---
 
-## 📐 Control Algorithms
+## Control Algorithms
 
 ### Inverse Kinematics & Filtering
 
@@ -76,7 +76,7 @@ Safety is handled via the `NewPing` library using a polling-based approach to pr
 
 ---
 
-## ⚙️ Installation & Setup
+## Installation & Setup
 
 ### ESP32 (Firmware)
 
@@ -98,7 +98,7 @@ Safety is handled via the `NewPing` library using a polling-based approach to pr
 
 ---
 
-## 👥 Contributors
+## Contributors
 
 - **Tai Williams** - System Architecture & Firmware
 - **Aiden O'Connor** - Mechanical System & Design
