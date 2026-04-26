@@ -1,5 +1,6 @@
 #include "ikinematic.h"
 #include "constants.h"
+#include "sensors/tof.h"
 #include "Arduino.h"
 
 JointAngles calculateIK(Point target) {
@@ -24,4 +25,18 @@ JointAngles calculateIK(Point target) {
     angles.shoulder = (angleA + acos(cosShoulder)) * 180.0 / M_PI;
 
     return angles;
+}
+
+void computeTargetZ(float x, float y) {
+    if (gaze.update(x, y)) {
+        float gripperDist = getGripperDistance();
+
+        if (gripperDist == TOF_ERROR) {
+            target.z += REACH_SPEED;
+        } else {
+            target.z += (gripperDist - GRIPPER_REACH);
+        }
+    } else {
+        target.z -= REACH_SPEED;
+    }
 }
