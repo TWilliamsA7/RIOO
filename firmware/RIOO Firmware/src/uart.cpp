@@ -10,6 +10,9 @@ float max_working_x;
 float min_working_y;
 float max_working_y;
 
+void parseCalibration(String data);
+void parseTracking(String input);
+
 void initializeUART() {
 
     Serial.begin(115200);
