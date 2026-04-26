@@ -8,12 +8,12 @@ import threading
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
 # ==========================================
-# PHYSICAL REACH LIMITS
+# PHYSICAL REACH LIMITS (NOW IN MILLIMETERS)
 # ==========================================
-# How far (in cm) can the arm reach from its center point?
-MAX_REACH_X = 15.0  # 15cm left or right
-MAX_REACH_Z = 15.0  # 15cm forward or backward
-FIXED_Y = -10.0     # The table is 10cm below the robot base
+# How far (in mm) can the arm reach from its center point?
+MAX_REACH_X = 150.0  # 150mm left or right (15cm)
+MAX_REACH_Z = 150.0  # 150mm forward or backward (15cm)
+FIXED_Y = -100.0     # The table is 100mm below the robot base (-10cm)
 # ==========================================
 
 # --- Fixed Camera Class (Thread Safe) ---
@@ -136,12 +136,12 @@ while True:
         active_x = max(-1.0, min(1.0, active_x))
         active_y = max(-1.0, min(1.0, active_y))
 
-        # --- MAP TO 3D PHYSICAL TABLE (CM) ---
+        # --- MAP TO 3D PHYSICAL TABLE (MM) ---
         target_x = active_x * MAX_REACH_X
         target_z = active_y * MAX_REACH_Z
         target_y = FIXED_Y
 
-        print(f"Target -> X:{target_x:5.1f} | Y:{target_y:5.1f} | Z:{target_z:5.1f}")
+        print(f"Target -> X:{target_x:6.1f} | Y:{target_y:6.1f} | Z:{target_z:6.1f} (mm)")
 
         # --- YOUR ORIGINAL VISUAL DOTS ---
         for lm in [inner_corner, outer_corner, top_edge, bottom_edge]:
@@ -150,13 +150,8 @@ while True:
 
         # --- SEND TO ESP32 ---
         if ser:
-            if active_x < -0.6 and active_y < -0.6:
-                ser.write(b'U') 
-            elif active_x > 0.6 and active_y < -0.6:
-                ser.write(b'V')
-            else:
-                data_packet = f"{target_x:.1f},{target_y:.1f},{target_z:.1f}\n"
-                ser.write(data_packet.encode('utf-8'))
+            data_packet = f"{target_x:.1f},{target_y:.1f},{target_z:.1f}\n"
+            ser.write(data_packet.encode('utf-8'))
 
     # --- KEYBOARD LOGIC ---
     if not is_headless:
