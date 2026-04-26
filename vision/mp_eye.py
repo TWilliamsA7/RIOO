@@ -5,21 +5,24 @@ import serial
 import time
 import threading
 import numpy as np
+import math
 
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
 # ==========================================
-# PHYSICAL REACH LIMITS (IN MILLIMETERS)
+# PHYSICAL REACH LIMITS & WEIGHTS
 # ==========================================
-MAX_REACH_X = 150.0  # 150mm left or right (15cm)
-MAX_REACH_Z = 150.0  # 150mm forward or backward (15cm)
-FIXED_Y = -100.0     # The table is 100mm below the robot base (-10cm)
+MAX_REACH_X = 150.0  # 150mm left or right
+MAX_REACH_Z = 150.0  # 150mm forward or backward
+FIXED_Y = -100.0     # The table is 100mm below the robot base
 
-# --- HEAD TRACKING WEIGHTS ---
-# These control how much your head turn affects the final room coordinate. 
-# If turning your head moves the arm the WRONG way, change the + to a - in the math below!
-HEAD_YAW_WEIGHT = 0.02   
-HEAD_PITCH_WEIGHT = 0.02 
+# LOWERED WEIGHTS to prevent the 150mm snap.
+# Tweak these decimals slightly if it still over/under compensates.
+HEAD_YAW_WEIGHT = 0.005   
+HEAD_PITCH_WEIGHT = 0.005 
+
+# Smoothing Factor (0.01 to 1.0)
+SMOOTHING_FACTOR = 0.15 
 # ==========================================
 
 # --- Fixed Camera Class (Thread Safe) ---
@@ -94,14 +97,13 @@ if not cam.ret:
     cam.stop()
     exit()
 
-print("Stream connected! Tracking gaze and head pose...")
+print("Stream connected! Tracking gaze and 6DoF head pose...")
 
-# Calibration Offsets & Smoothing
+# Variables
 offset_x = 0.0
 offset_y = 0.0
 smooth_x = 0.0
 smooth_y = 0.0
-SMOOTHING_FACTOR = 0.15 
 
 while True:
     ret, frame = cam.read()
@@ -124,7 +126,6 @@ while True:
         # ==========================================
         # 1. SOLVE PNP (HEAD POSE ESTIMATION)
         # ==========================================
-        # Extract the 6 key points for the 3D map
         face_2d_image = np.array([
             (landmarks[1].x * w, landmarks[1].y * h),     # Nose tip
             (landmarks[152].x * w, landmarks[152].y * h), # Chin
@@ -134,47 +135,56 @@ while True:
             (landmarks[291].x * w, landmarks[291].y * h)  # Right mouth corner
         ], dtype=np.float64)
 
-        # Camera internals (Assuming standard webcam focal length)
         focal_length = 1.0 * w
         cam_matrix = np.array([[focal_length, 0, w / 2],
                                [0, focal_length, h / 2],
                                [0, 0, 1]], dtype=np.float64)
         dist_matrix = np.zeros((4, 1), dtype=np.float64)
 
-        # Calculate Head Rotation Matrix
         success, rvec, tvec = cv2.solvePnP(face_3d_model, face_2d_image, cam_matrix, dist_matrix, flags=cv2.SOLVEPNP_ITERATIVE)
         rmat, _ = cv2.Rodrigues(rvec)
         angles, _, _, _, _, _ = cv2.RQDecomp3x3(rmat)
 
-        head_pitch = angles[0] # Nodding up/down (Degrees)
-        head_yaw = angles[1]   # Turning left/right (Degrees)
-        head_roll = angles[2]  # Tilting side to side (Degrees)
+        head_pitch = angles[0] # Nodding up/down
+        head_yaw = angles[1]   # Turning left/right
+        head_roll = angles[2]  # Tilting side to side
 
         # ==========================================
-        # 2. EYE TRACKING (YOUR EXACT ORIGINAL MATH)
+        # 2. DUAL EYE TRACKING (AVERAGED)
         # ==========================================
-        iris = landmarks[473]
-        inner_corner = landmarks[362]
-        outer_corner = landmarks[263]
-        top_edge = landmarks[467]
-        bottom_edge = landmarks[374]
-        
-        eye_width = outer_corner.x - inner_corner.x
-        ratio_x = (iris.x - inner_corner.x) / eye_width if eye_width != 0 else 0.5
+        def get_gaze(iris_idx, inner_idx, outer_idx, top_idx, bottom_idx):
+            iris = landmarks[iris_idx]
+            inner = landmarks[inner_idx]
+            outer = landmarks[outer_idx]
+            top = landmarks[top_idx]
+            bottom = landmarks[bottom_idx]
             
-        eye_height = bottom_edge.y - top_edge.y
-        ratio_y = (iris.y - top_edge.y) / eye_height if eye_height != 0 else 0.5
+            eye_w = abs(outer.x - inner.x)
+            eye_h = abs(bottom.y - top.y)
+            
+            rx = (iris.x - inner.x) / eye_w if eye_w != 0 else 0.5
+            ry = (iris.y - top.y) / eye_h if eye_h != 0 else 0.5
+            return (rx * 2.0) - 1.0, -((ry * 2.0) - 1.0)
 
-        raw_eye_x = (ratio_x * 2.0) - 1.0
-        raw_eye_y = -((ratio_y * 2.0) - 1.0)
+        # Left Eye (From camera perspective)
+        lx, ly = get_gaze(473, 362, 263, 467, 374)
+        # Right Eye (From camera perspective)
+        rx, ry = get_gaze(468, 133, 33, 159, 145)
+
+        raw_eye_x = (lx + rx) / 2.0
+        raw_eye_y = (ly + ry) / 2.0
 
         # ==========================================
-        # 3. MERGING HEAD POSE AND GAZE
+        # 3. MERGING HEAD POSE AND GAZE (All 3 Axes)
         # ==========================================
-        # Combine the eye's movement with the head's physical rotation.
-        # (If moving your head moves the arm the wrong way, change the + to a - )
-        combined_x = raw_eye_x + (head_yaw * HEAD_YAW_WEIGHT)
-        combined_y = raw_eye_y + (head_pitch * HEAD_PITCH_WEIGHT)
+        # Un-tilt the Roll
+        roll_rad = math.radians(head_roll)
+        derolled_x = (raw_eye_x * math.cos(roll_rad)) - (raw_eye_y * math.sin(roll_rad))
+        derolled_y = (raw_eye_x * math.sin(roll_rad)) + (raw_eye_y * math.cos(roll_rad))
+
+        # Cancel the Yaw and Pitch (Using minus signs and lowered weights)
+        combined_x = derolled_x - (head_yaw * HEAD_YAW_WEIGHT)
+        combined_y = derolled_y - (head_pitch * HEAD_PITCH_WEIGHT)
 
         # ==========================================
         # 4. SHOCK ABSORBER (SMOOTHING) & CALIBRATION
@@ -185,7 +195,7 @@ while True:
         active_x = smooth_x - offset_x
         active_y = smooth_y - offset_y
 
-        # Clamp the active zone 
+        # Clamp the active zone
         active_x = max(-1.0, min(1.0, active_x))
         active_y = max(-1.0, min(1.0, active_y))
 
@@ -199,24 +209,24 @@ while True:
         # ==========================================
         # VISUALS & COMMUNICATION
         # ==========================================
-        # Draw the Eye Dots
-        for lm in [inner_corner, outer_corner, top_edge, bottom_edge]:
-            cv2.circle(frame, (int(lm.x * w), int(lm.y * h)), 3, (0, 0, 255), -1)
-        cv2.circle(frame, (int(iris.x * w), int(iris.y * h)), 4, (0, 255, 0), -1)
+        # Draw Left Eye Dots
+        for idx in [362, 263, 467, 374]:
+            cv2.circle(frame, (int(landmarks[idx].x * w), int(landmarks[idx].y * h)), 2, (0, 0, 255), -1)
+        cv2.circle(frame, (int(landmarks[473].x * w), int(landmarks[473].y * h)), 3, (0, 255, 0), -1)
+        
+        # Draw Right Eye Dots
+        for idx in [133, 33, 159, 145]:
+            cv2.circle(frame, (int(landmarks[idx].x * w), int(landmarks[idx].y * h)), 2, (0, 0, 255), -1)
+        cv2.circle(frame, (int(landmarks[468].x * w), int(landmarks[468].y * h)), 3, (0, 255, 0), -1)
 
-        # Draw the 3D Head Pose Axis (JUDGES WILL LOVE THIS)
+        # Draw the 3D Head Pose Axis
         if success:
             cv2.drawFrameAxes(frame, cam_matrix, dist_matrix, rvec, tvec, 150, 2)
 
         # SEND TO ESP32
         if ser:
-            if active_x < -0.6 and active_y < -0.6:
-                ser.write(b'U') 
-            elif active_x > 0.6 and active_y < -0.6:
-                ser.write(b'V')
-            else:
-                data_packet = f"{target_x:.1f},{target_y:.1f},{target_z:.1f}\n"
-                ser.write(data_packet.encode('utf-8'))
+            data_packet = f"{target_x:.1f},{target_y:.1f},{target_z:.1f}\n"
+            ser.write(data_packet.encode('utf-8'))
 
     # --- KEYBOARD LOGIC ---
     if not is_headless:
