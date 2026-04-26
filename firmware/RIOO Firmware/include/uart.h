@@ -3,7 +3,7 @@
 
 struct GazeCommand {
     float xPos;
-    float yPos;
+    float zPos;
     bool grab;
 };
 

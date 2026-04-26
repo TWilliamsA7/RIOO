@@ -47,8 +47,8 @@ const float MAX_JOINT = 90.0;
 const float MIN_REACH = 0.0;
 const float MAX_REACH = 300.0; // (mm)
 
-constexpr int GRIP_OPEN = 5; // (deg)
-constexpr int GRIP_CLOSED = 9; // (deg)
+constexpr int GRIP_OPEN = 14; // (deg)
+constexpr int GRIP_CLOSED = 45; // (deg)
 constexpr float GRIP_SPEED = 0.5; 
 constexpr float RELEASE_SPEED = 0.5;
 
