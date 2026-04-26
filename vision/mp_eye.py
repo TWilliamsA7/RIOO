@@ -27,7 +27,7 @@ is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
 # --- SERIAL SETUP ---
 try:
-    ser = serial.Serial('/dev/serial0', 115200, timeout=1)
+    ser = serial.Serial('/dev/ttyAMA0', 115200, timeout=1)
     time.sleep(2)
     print("ESP32 Connected.")
 except:
@@ -167,7 +167,7 @@ while True:
         # 5. SEND TO ESP32 (Format: X{.2f}Z:{.2f}G{})
         if ser:
             data = f"X{smooth_x:.2f}Z:{smooth_z:.2f}G{int(claw_open)}\n"
-            ser.write(data.encode())
+            ser.write(f"X{smooth_x:.2f}Z:{smooth_z:.2f}G{int(claw_open)}\n")
             print(f"Sent: {data.strip()}")
 
     if not is_headless:
