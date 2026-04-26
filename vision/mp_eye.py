@@ -24,7 +24,7 @@ is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
 
 # --- Fixed Camera Class (Zero Lag) ---
 class CameraStream:
-    def __init__(self, src=0): 
+    def __init__(self, src='tcp://127.0.0.1:8888'):
         self.stream = cv2.VideoCapture(src)
         self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 1) 
         self.ret, self.frame = self.stream.read()
