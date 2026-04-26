@@ -11,13 +11,10 @@ struct JointAngles {
     float base, shoulder, elbow;
 };
 
-Point target;
-GazeTracker gaze;
-
-const float REACH_SPEED = 2.5;
+extern Point target;
+extern GazeTracker gaze;
 
 JointAngles calculateIK();
 void computeTargetZ(float x, float y);
 
-
-#endif // IKINEMATICS_H
+#endif

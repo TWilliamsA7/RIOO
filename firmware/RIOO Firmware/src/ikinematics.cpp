@@ -1,7 +1,10 @@
-#include "ikinematic.h"
+#include "ikinematics.h"
 #include "constants.h"
 #include "sensors/tof.h"
 #include "Arduino.h"
+
+Point target = {0.0f, 0.0f, 10.0f};
+GazeTracker gaze;
 
 JointAngles calculateIK() {
     JointAngles angles;
@@ -12,6 +15,8 @@ JointAngles calculateIK() {
     // 2. Reach and Space Distance
     float r = sqrt(sq(target.x) + sq(target.z));
     float s = sqrt(sq(r) + sq(target.y));
+
+    if (s < 1e-6f) return angles;
 
     // 3. Elbow Angle (Law of Cosines)
     float cosElbow = (sq(SHOULDER_LENGTH) + sq(FOREARM_LENGTH) - sq(s)) / (2 * SHOULDER_LENGTH * FOREARM_LENGTH);
