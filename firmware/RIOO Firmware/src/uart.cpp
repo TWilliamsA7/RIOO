@@ -5,6 +5,11 @@
 GazeCommand currentCommand = {0.0f, 0.0f, false};
 HardwareSerial SerialPi(2);
 
+float min_working_x;
+float max_working_x;
+float min_working_y;
+float max_working_y;
+
 void initializeUART() {
 
     Serial.begin(115200);
@@ -16,7 +21,27 @@ void initializeUART() {
 void parseUART() {
     if (Serial.available() > 0) {
         String input = Serial.readStringUntil('\n');
-        int xPos = input.indexOf('X');
+        input.trim();
+
+        if (input.length() == 0) return;
+
+        char header = input.charAt(0);
+        String data = input.substring(1);
+
+        // Tracking
+        if (header == 'T') {
+            parseTracking(data);
+        } else if (header == 'C') { // Calibration
+            
+        }
+
+
+        
+    }
+}
+
+void parseTracking(String input) {
+    int xPos = input.indexOf('X');
         int yPos = input.indexOf('Y');
         int gPos = input.indexOf('G');
 
@@ -34,5 +59,20 @@ void parseUART() {
             Serial.print(" | Y: "); Serial.print(currentCommand.yPos);
             Serial.print(" | Grab: "); Serial.println(currentCommand.grab);
         }
+}
+
+void parseCalibration(String data) {
+
+    int c1 = data.indexOf(',');
+    int c2 = data.indexOf(',', c1 + 1);
+    int c3 = data.indexOf(',', c2 + 1);
+
+    if (c1 != -1 && c2 != -1 && c3 != -1) {
+        min_working_x = data.substring(0, c1).toFloat();
+        max_working_x = data.substring(c1 + 1, c2).toFloat();
+        min_working_y = data.substring(c2 + 1, c3).toFloat();
+        max_working_y = data.substring(c3 + 1).toFloat();
+        
+        Serial.println("Workspace Calibrated!");
     }
 }

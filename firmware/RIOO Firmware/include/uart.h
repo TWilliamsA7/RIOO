@@ -9,6 +9,11 @@ struct GazeCommand {
 
 extern GazeCommand gazeCommand;
 
+extern float min_working_x;
+extern float max_working_x;
+extern float min_working_y;
+extern float max_working_y;
+
 void initializeUART();
 void parseUART();
 
