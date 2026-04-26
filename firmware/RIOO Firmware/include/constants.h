@@ -17,6 +17,12 @@
 #define ELBOW_SERVO_PIN 18
 #define GRIPPER_SERVO_PIN 19
 
+// === SERVO CONFIGURATION === //
+
+constexpr float SERVO_STEP_SIZE = 1.5;
+constexpr float SERVO_DEADBAND = 0.5;
+constexpr float REACH_SPEED = 2.5;
+
 // === ARM MEASUREMENTS & CONSTRAINTS === //
 
 const float SHOULDER_LENGTH = 127.0;
