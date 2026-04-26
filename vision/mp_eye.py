@@ -20,7 +20,7 @@ EYE_SENS_Y = 2.0
 
 # Gesture Sensitivity
 EYE_CLOSED_THRESHOLD = 0.010  # Below this = eyes closed
-BROW_RAISE_THRESHOLD = 0.150  # Above this = eyebrows raised
+BROW_RAISE_THRESHOLD = 0.100  # Above this = eyebrows raised
 EYE_CLOSE_DURATION = 2.0      # Seconds to trigger claw close
 
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
@@ -64,7 +64,7 @@ cam = CameraStream().start()
 smooth_x, smooth_z = 0.0, 0.0
 
 # Gesture State
-claw_open = False  # Starts closed (G0)
+claw_open = True  # Starts closed (G0)
 eye_close_start_time = None
 
 # Calibration Deltas
@@ -135,17 +135,21 @@ while True:
         avg_brow = (left_brow_dist + right_brow_dist) / 2.0
 
         # Claw Open Logic: Eyebrow Raise (Set to True, else no change)
-        if avg_brow > BROW_RAISE_THRESHOLD:
-            claw_open = True
-        
-        # Claw Close Logic: Long Eye Closure (Set to False after 2s, else no change)
-        if avg_ear < EYE_CLOSED_THRESHOLD:
-            if eye_close_start_time is None:
-                eye_close_start_time = time.time()
-            elif time.time() - eye_close_start_time >= EYE_CLOSE_DURATION:
-                claw_open = False
+        if avg_brow < BROW_RAISE_THRESHOLD and avg_ear > EYE_CLOSED_THRESHOLD:
+            continue
         else:
-            eye_close_start_time = None
+            if avg_brow > BROW_RAISE_THRESHOLD:
+                claw_open = True
+            # Claw Close Logic: Long Eye Closure (Set to False after 2s, else no change)
+            if avg_ear < EYE_CLOSED_THRESHOLD:
+                if eye_close_start_time is None:
+                    eye_close_start_time = time.time()
+                elif time.time() - eye_close_start_time >= EYE_CLOSE_DURATION:
+                    claw_open = False
+            else:
+                eye_close_start_time = None
+
+        
 
         # 4. MATH & SMOOTHING
         delta_yaw = total_yaw - calib_total_yaw
