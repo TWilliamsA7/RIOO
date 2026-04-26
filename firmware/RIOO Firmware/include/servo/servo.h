@@ -10,6 +10,7 @@ struct ServoAngles {
 enum ServoPlacement { BASE, ELBOW, SHOULDER };
 
 extern ServoAngles servoAngles;
+extern bool clawActionDone;
 
 // Initialize all servos
 void initializeServos();
