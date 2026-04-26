@@ -3,10 +3,9 @@
 #include "sensors/tof.h"
 #include "Arduino.h"
 
-Point target = {0.0f, 0.0f, 10.0f};
 GazeTracker gaze;
 
-JointAngles calculateIK() {
+JointAngles calculateIK(Point& target) {
     JointAngles angles;
 
     // 1. Base Angle
@@ -32,8 +31,8 @@ JointAngles calculateIK() {
     return angles;
 }
 
-void computeTargetZ(float x, float y) {
-    if (gaze.update(x, y)) {
+void computeTargetZ(Point& target) {
+    if (gaze.update(target.x, target.y)) {
         float gripperDist = getGripperDistance();
 
         if (gripperDist == TOF_ERROR) {
@@ -43,5 +42,8 @@ void computeTargetZ(float x, float y) {
         }
     } else {
         target.z -= REACH_SPEED;
+        if (target.z < 0.0) {
+            target.z = 0.0;
+        }
     }
 }

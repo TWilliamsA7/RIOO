@@ -35,4 +35,8 @@ const float MAX_JOINT = 90.0;
 const float MIN_REACH = 0.0;
 const float MAX_REACH = 300.0;
 
+// === ARM RESPONSIVENESS PARAMETERS === //
+
+constexpr float PLANAR_ALPHA = 0.25;
+
 #endif // CONSTANTS_H
