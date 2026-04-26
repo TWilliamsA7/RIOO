@@ -22,6 +22,10 @@ class CameraStream:
     def update(self):
         while not self.stopped:
             self.ret, self.frame = self.stream.read()
+            if self.ret:
+                # --- APPLY ORIENTATION FIXES HERE ---
+                self.frame = cv2.rotate(self.frame, cv2.ROTATE_180)
+                self.frame = cv2.flip(self.frame, 1) # Horizontal flip
 
     def read(self):
         return self.ret, self.frame
@@ -78,7 +82,7 @@ while True:
         iris = landmarks[473]
         inner_corner = landmarks[362]
         outer_corner = landmarks[263]
-        top_edge = landmarks[336]
+        top_edge = landmarks[386]
         bottom_edge = landmarks[374]
         
         # --- GAZE MATH (RAW RATIOS) ---
