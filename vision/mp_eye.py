@@ -19,8 +19,8 @@ EYE_SENS_X = 2.5         # CRANKED UP: 5cm travel means this needs to be high
 EYE_SENS_Y = 2.0         
 
 # Gesture Sensitivity
-EYE_CLOSED_THRESHOLD = 0.012  # Below this = eyes closed
-BROW_RAISE_THRESHOLD = 0.3  # Above this = eyebrows raised
+EYE_CLOSED_THRESHOLD = 0.010  # Below this = eyes closed
+BROW_RAISE_THRESHOLD = 0.200  # Above this = eyebrows raised
 EYE_CLOSE_DURATION = 2.0      # Seconds to trigger claw close
 
 is_headless = os.environ.get('ROBOT_HEADLESS', '0') == '1'
