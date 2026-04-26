@@ -32,7 +32,7 @@ class CameraStream:
 # ------------------------------------------
 
 # --- Serial Setup ---
-ESP_PORT = '/dev/ttyUSB0' 
+ESP_PORT = '/dev/ttyAMA0' 
 BAUD_RATE = 115200
 try:
     ser = serial.Serial(ESP_PORT, BAUD_RATE, timeout=1)
