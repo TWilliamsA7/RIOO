@@ -20,7 +20,7 @@ void initializeUART() {
 }
 
 void parseUART() {
-    if (Serial.available() > 0) {
+    if (SerialPi.available() > 0) {
         String input = SerialPi.readStringUntil('\n');
         Serial.print("Raw: "); Serial.println(input);
         input.trim();
